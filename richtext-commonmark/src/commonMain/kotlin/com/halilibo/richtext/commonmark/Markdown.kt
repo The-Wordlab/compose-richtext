@@ -32,7 +32,12 @@ public fun RichTextScope.Markdown(
     key1 = commonmarkAstNodeParser,
     key2 = content
   ) {
-    value = commonmarkAstNodeParser.parse(content)
+    val normalizedContent = if (markdownParseOptions.enableLatex) {
+      normalizeLatexDelimiters(content)
+    } else {
+      content
+    }
+    value = commonmarkAstNodeParser.parse(normalizedContent)
   }
 
   astRootNode?.let {

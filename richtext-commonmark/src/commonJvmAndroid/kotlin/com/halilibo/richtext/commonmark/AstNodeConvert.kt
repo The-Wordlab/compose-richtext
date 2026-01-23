@@ -1,7 +1,11 @@
 package com.halilibo.richtext.commonmark
 
+import com.halilibo.richtext.commonmark.math.MathDisplayBlock
+import com.halilibo.richtext.commonmark.math.MathExtension
+import com.halilibo.richtext.commonmark.math.MathInlineNode
 import com.halilibo.richtext.markdown.node.AstBlockQuote
 import com.halilibo.richtext.markdown.node.AstCode
+import com.halilibo.richtext.markdown.node.AstDisplayMath
 import com.halilibo.richtext.markdown.node.AstDocument
 import com.halilibo.richtext.markdown.node.AstEmphasis
 import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
@@ -11,6 +15,7 @@ import com.halilibo.richtext.markdown.node.AstHtmlBlock
 import com.halilibo.richtext.markdown.node.AstHtmlInline
 import com.halilibo.richtext.markdown.node.AstImage
 import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
+import com.halilibo.richtext.markdown.node.AstInlineMath
 import com.halilibo.richtext.markdown.node.AstLink
 import com.halilibo.richtext.markdown.node.AstLinkReferenceDefinition
 import com.halilibo.richtext.markdown.node.AstListItem
@@ -161,6 +166,8 @@ internal fun convert(
     is Strikethrough -> AstStrikethrough(
       node.openingDelimiter
     )
+    is MathInlineNode -> AstInlineMath(literal = node.literal, displayMode = node.displayMode)
+    is MathDisplayBlock -> AstDisplayMath(literal = node.literal)
     is CustomNode -> null
     is CustomBlock -> null
     else -> null
@@ -191,7 +198,8 @@ public actual class CommonmarkAstNodeParser actual constructor(
       listOfNotNull(
         TablesExtension.create(),
         StrikethroughExtension.create(),
-        if (options.autolink) AutolinkExtension.create() else null
+        if (options.autolink) AutolinkExtension.create() else null,
+        if (options.enableLatex) MathExtension.create() else null,
       )
     )
     .build()

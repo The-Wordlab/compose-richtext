@@ -1,0 +1,10 @@
+package com.halilibo.richtext.markdown
+
+import androidx.compose.runtime.Composable
+
+/**
+ * Platform-specific inline math rendering. On Android, renders via RaTeX.
+ * On Desktop/JVM, falls back to displaying the raw LaTeX as text.
+ */
+@Composable
+internal expect fun InlineMathContent(latex: String)

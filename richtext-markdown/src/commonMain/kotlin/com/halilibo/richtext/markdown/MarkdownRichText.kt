@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.halilibo.richtext.markdown.local.LocalImageLinkHandler
@@ -15,6 +16,7 @@ import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
 import com.halilibo.richtext.markdown.node.AstHardLineBreak
 import com.halilibo.richtext.markdown.node.AstHeading
 import com.halilibo.richtext.markdown.node.AstImage
+import com.halilibo.richtext.markdown.node.AstInlineMath
 import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
 import com.halilibo.richtext.markdown.node.AstLink
 import com.halilibo.richtext.markdown.node.AstLinkReferenceDefinition
@@ -130,6 +132,24 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
         is AstStrongEmphasis -> richTextStringBuilder.pushFormat(RichTextString.Format.Bold)
         is AstText -> {
           richTextStringBuilder.append(currentNodeType.literal)
+          null
+        }
+        is AstInlineMath -> {
+          if (currentNodeType.displayMode) {
+            richTextStringBuilder.appendInlineContent(
+              content = InlineContent {
+                DisplayMathContent(latex = currentNodeType.literal)
+              }
+            )
+          } else {
+            richTextStringBuilder.appendInlineContent(
+              content = InlineContent(
+                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+              ) {
+                InlineMathContent(latex = currentNodeType.literal)
+              }
+            )
+          }
           null
         }
         is AstLinkReferenceDefinition -> richTextStringBuilder.pushFormat(
