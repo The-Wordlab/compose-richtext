@@ -5,52 +5,65 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
-import io.ratex.DisplayList
-import io.ratex.RaTeXEngine
 
 /**
- * LRU cache for parsed [DisplayList] objects. Replaces the heavy [WebView] pool
- * with a lightweight data structure — [DisplayList] is immutable and trivially cacheable.
+ * LRU cache for pre-rendered LaTeX formula bitmaps.
+ * Caches the final colored bitmap so that scrolling in a LazyColumn
+ * never needs to re-parse or re-render — just a single drawBitmap() call.
+ *
+ * Key: (latex, displayMode, fontSizePx, colorArgb)
  */
-public class RaTeXDisplayListCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
+public class RaTeXBitmapCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
 
-  private val cache = object : LinkedHashMap<String, DisplayList>(maxSize + 1, 0.75f, true) {
-    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, DisplayList>): Boolean {
-      return size > maxSize
+  private val cache = object : LinkedHashMap<String, BitmapResult>(maxSize + 1, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BitmapResult>): Boolean {
+      if (size > maxSize) {
+        eldest.value.bitmap.recycle()
+        return true
+      }
+      return false
     }
   }
 
-  internal suspend fun getOrParse(latex: String, displayMode: Boolean): DisplayList {
-    val key = "$displayMode:$latex"
+  private fun key(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int): String {
+    return "$displayMode:$fontSizePx:$colorArgb:$latex"
+  }
+
+  internal fun get(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int): BitmapResult? {
     synchronized(cache) {
-      cache[key]?.let { return it }
+      return cache[key(latex, displayMode, fontSizePx, colorArgb)]
     }
-    val result = RaTeXEngine.parse(latex, displayMode)
+  }
+
+  internal fun put(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int, result: BitmapResult) {
     synchronized(cache) {
-      cache[key] = result
+      val k = key(latex, displayMode, fontSizePx, colorArgb)
+      if (!cache.containsKey(k)) {
+        cache[k] = result
+      }
     }
-    return result
   }
 
   public fun clear() {
     synchronized(cache) {
+      cache.values.forEach { it.bitmap.recycle() }
       cache.clear()
     }
   }
 
   public companion object {
-    public const val DEFAULT_MAX_SIZE: Int = 50
+    public const val DEFAULT_MAX_SIZE: Int = 100
   }
 }
 
-public val LocalRaTeXDisplayListCache: ProvidableCompositionLocal<RaTeXDisplayListCache?> =
+public val LocalRaTeXBitmapCache: ProvidableCompositionLocal<RaTeXBitmapCache?> =
   compositionLocalOf { null }
 
 @Composable
-public fun rememberRaTeXDisplayListCache(
-  maxSize: Int = RaTeXDisplayListCache.DEFAULT_MAX_SIZE
-): RaTeXDisplayListCache {
-  val cache = remember { RaTeXDisplayListCache(maxSize) }
+public fun rememberRaTeXBitmapCache(
+  maxSize: Int = RaTeXBitmapCache.DEFAULT_MAX_SIZE
+): RaTeXBitmapCache {
+  val cache = remember { RaTeXBitmapCache(maxSize) }
   DisposableEffect(cache) {
     onDispose { cache.clear() }
   }
