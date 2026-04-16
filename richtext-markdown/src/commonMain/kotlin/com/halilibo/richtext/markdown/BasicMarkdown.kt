@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.halilibo.richtext.markdown.node.AstBlockNodeType
 import com.halilibo.richtext.markdown.node.AstBlockQuote
+import com.halilibo.richtext.markdown.node.AstDisplayMath
 import com.halilibo.richtext.markdown.node.AstDocument
 import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
 import com.halilibo.richtext.markdown.node.AstHeading
@@ -201,6 +202,10 @@ private val DefaultAstNodeComposer = object : AstBlockNodeComposer {
             HtmlBlock(astNodeType.literal)
           })
         })
+      }
+
+      is AstDisplayMath -> {
+        DisplayMathContent(latex = astNodeType.literal)
       }
 
       is AstLinkReferenceDefinition -> {

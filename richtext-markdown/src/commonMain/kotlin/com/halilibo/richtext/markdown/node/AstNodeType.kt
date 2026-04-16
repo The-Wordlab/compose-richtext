@@ -108,6 +108,11 @@ public data class AstHtmlBlock(
 ) : AstLeafBlockNodeType()
 
 @Immutable
+public data class AstDisplayMath(
+  val literal: String
+) : AstLeafBlockNodeType()
+
+@Immutable
 public data class AstLinkReferenceDefinition(
   val label: String,
   val destination: String,
@@ -163,6 +168,12 @@ public data class AstImage(
 @Immutable
 public data class AstHtmlInline(
   val literal: String
+) : AstInlineNodeType()
+
+@Immutable
+public data class AstInlineMath(
+  val literal: String,
+  val displayMode: Boolean = false
 ) : AstInlineNodeType()
 
 @Immutable

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 private val Samples = listOf<Pair<String, @Composable () -> Unit>>(
   "RichText Demo" to @Composable { RichTextSample() },
   "Markdown Demo" to @Composable { MarkdownSample() },
+  "LaTeX Demo" to @Composable { LatexSample() },
   "Lazy Markdown Demo" to @Composable { LazyMarkdownSample() },
   "Pagination" to @Composable { PagedSample() },
   "Printable Document" to @Composable { DocumentSample() },
@@ -68,29 +69,10 @@ private val Samples = listOf<Pair<String, @Composable () -> Unit>>(
         itemsIndexed(Samples) { index, (title, sampleContent) ->
           ListItem(
             headlineContent = { Text(title) },
-            modifier = Modifier.clickable(onClick = { onSampleClicked(index) }),
-            leadingContent = { SamplePreview(sampleContent) }
+            modifier = Modifier.clickable(onClick = { onSampleClicked(index) })
           )
         }
       }
-    }
-  }
-}
-
-@Composable private fun SamplePreview(content: @Composable () -> Unit) {
-  ScreenPreview(
-    Modifier
-      .size(50.dp)
-      .aspectRatio(1f)
-      .clipToBounds()
-      // "Zoom in" to the top-start corner to make the preview more legible.
-      .graphicsLayer(
-        scaleX = 1.5f, scaleY = 1.5f,
-        transformOrigin = TransformOrigin(0f, 0f)
-      ),
-  ) {
-    SampleTheme(colorScheme = darkColorScheme()) {
-      Surface(content = content)
     }
   }
 }

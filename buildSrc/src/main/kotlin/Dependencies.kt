@@ -33,6 +33,10 @@ object Compose {
   val coil = "io.coil-kt:coil-compose:2.5.0"
 }
 
+object RaTeX {
+  val android = "io.github.erweixin:ratex-android:0.1.1"
+}
+
 object Commonmark {
   private val version = "0.21.0"
   val core = "org.commonmark:commonmark:$version"

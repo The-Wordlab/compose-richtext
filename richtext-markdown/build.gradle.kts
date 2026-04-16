@@ -27,6 +27,7 @@ kotlin {
     val androidMain by getting {
       dependencies {
         implementation(Compose.coil)
+        implementation(RaTeX.android)
       }
     }
 
