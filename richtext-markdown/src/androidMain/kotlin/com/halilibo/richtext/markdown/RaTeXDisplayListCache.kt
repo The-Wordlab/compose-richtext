@@ -12,16 +12,18 @@ import androidx.compose.runtime.remember
  * never needs to re-parse or re-render — just a single drawBitmap() call.
  *
  * Key: (latex, displayMode, fontSizePx, colorArgb)
+ *
+ * Bitmaps are never recycled explicitly: an evicted or cleared entry may
+ * still be referenced by a `BitmapCanvas` that hasn't been recomposed yet,
+ * and recycling it would crash the next frame. ARGB_8888 bitmaps live on
+ * the Java heap (Android O+), so GC reclaims them once no composable holds
+ * a reference.
  */
 public class RaTeXBitmapCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
 
   private val cache = object : LinkedHashMap<String, BitmapResult>(maxSize + 1, 0.75f, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BitmapResult>): Boolean {
-      if (size > maxSize) {
-        eldest.value.bitmap.recycle()
-        return true
-      }
-      return false
+      return size > maxSize
     }
   }
 
@@ -46,7 +48,6 @@ public class RaTeXBitmapCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
 
   public fun clear() {
     synchronized(cache) {
-      cache.values.forEach { it.bitmap.recycle() }
       cache.clear()
     }
   }
