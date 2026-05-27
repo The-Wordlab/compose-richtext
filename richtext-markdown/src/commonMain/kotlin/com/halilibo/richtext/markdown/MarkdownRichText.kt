@@ -1,6 +1,7 @@
 package com.halilibo.richtext.markdown
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -16,8 +17,8 @@ import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
 import com.halilibo.richtext.markdown.node.AstHardLineBreak
 import com.halilibo.richtext.markdown.node.AstHeading
 import com.halilibo.richtext.markdown.node.AstImage
-import com.halilibo.richtext.markdown.node.AstInlineMath
 import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
+import com.halilibo.richtext.markdown.node.AstInlineMath
 import com.halilibo.richtext.markdown.node.AstLink
 import com.halilibo.richtext.markdown.node.AstLinkReferenceDefinition
 import com.halilibo.richtext.markdown.node.AstListItem
@@ -68,6 +69,7 @@ internal fun RichTextScope.MarkdownRichText(astNode: AstNode, modifier: Modifier
   Text(text = richText, modifier = modifier)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 private fun computeRichTextString(astNode: AstNode): RichTextString {
   val richTextStringBuilder = RichTextString.Builder()
 
@@ -92,10 +94,12 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
           }
           null
         }
+
         is AstEmphasis -> richTextStringBuilder.pushFormat(RichTextString.Format.Italic)
         is AstStrikethrough -> richTextStringBuilder.pushFormat(
           RichTextString.Format.Strikethrough
         )
+
         is AstImage -> {
           richTextStringBuilder.appendInlineContent(
             content = InlineContent(
@@ -105,9 +109,14 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
             ) {
               val linkHandler = LocalImageLinkHandler.current
               val hasLinkParent = currentNode.links.parent?.type is AstLink
-              val modifier = if (hasLinkParent) Modifier else Modifier.clickable {
-                linkHandler.openImage(currentNodeType.destination)
-              }
+              val modifier = if (hasLinkParent) Modifier else Modifier.combinedClickable(
+                onLongClick = {
+                  linkHandler.longPressImage(currentNodeType.destination)
+                },
+                onClick = {
+                  linkHandler.openImage(currentNodeType.destination)
+                }
+              )
               RemoteImage(
                 url = currentNodeType.destination,
                 contentDescription = currentNodeType.title,
@@ -118,22 +127,29 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
           )
           null
         }
-        is AstLink -> richTextStringBuilder.pushFormat(RichTextString.Format.Link(
-          destination = currentNodeType.destination
-        ))
+
+        is AstLink -> richTextStringBuilder.pushFormat(
+          RichTextString.Format.Link(
+            destination = currentNodeType.destination
+          )
+        )
+
         is AstSoftLineBreak -> {
           richTextStringBuilder.append(" ")
           null
         }
+
         is AstHardLineBreak -> {
           richTextStringBuilder.append("\n")
           null
         }
+
         is AstStrongEmphasis -> richTextStringBuilder.pushFormat(RichTextString.Format.Bold)
         is AstText -> {
           richTextStringBuilder.append(currentNodeType.literal)
           null
         }
+
         is AstInlineMath -> {
           if (currentNodeType.displayMode) {
             richTextStringBuilder.appendInlineContent(
@@ -152,8 +168,11 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
           }
           null
         }
+
         is AstLinkReferenceDefinition -> richTextStringBuilder.pushFormat(
-          RichTextString.Format.Link(destination = currentNodeType.destination))
+          RichTextString.Format.Link(destination = currentNodeType.destination)
+        )
+
         else -> null
       }
 
