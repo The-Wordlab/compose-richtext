@@ -5,12 +5,17 @@ import androidx.compose.runtime.compositionLocalOf
 
 public interface ImageLinkHandler {
   public fun openImage(uri: String)
+  public fun longPressImage(uri: String)
 }
 
 public val LocalImageLinkHandler: ProvidableCompositionLocal<ImageLinkHandler> =
   compositionLocalOf {
     object : ImageLinkHandler {
       override fun openImage(uri: String) {
+        // DO NOTHING
+      }
+
+      override fun longPressImage(uri: String) {
         // DO NOTHING
       }
     }
