@@ -12,17 +12,17 @@ repositories {
 
 kotlin {
   jvm()
-  android {
+  androidTarget {
     publishLibraryVariants("release")
-    compilations.all {
-      kotlinOptions.jvmTarget = "11"
+    compilerOptions {
+      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
   }
   explicitApi()
 }
 
 android {
-  compileSdk = 34
+  compileSdk = AndroidConfiguration.compileSdk
   sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
 
   compileOptions {
@@ -31,7 +31,7 @@ android {
   }
 
   defaultConfig {
-    minSdk = 21
-    targetSdk = compileSdk
+    minSdk = AndroidConfiguration.minSdk
+    targetSdk = AndroidConfiguration.targetSdk
   }
 }

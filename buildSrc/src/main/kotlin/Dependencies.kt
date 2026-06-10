@@ -13,7 +13,7 @@ object Network {
 
 object Kotlin {
   // keep in sync with buildSrc/build.gradle.kts
-  val version = "2.0.21"
+  val version = "2.2.20"
   val binaryCompatibilityValidatorPlugin = "org.jetbrains.kotlinx:binary-compatibility-validator:0.9.0"
   val gradlePlugin = "org.jetbrains.kotlin:kotlin-gradle-plugin:$version"
 
@@ -27,10 +27,12 @@ object Kotlin {
 val ktlint = "org.jlleitschuh.gradle:ktlint-gradle:10.0.0"
 
 object Compose {
-  val desktopVersion = "1.7.1"
+  val desktopVersion = "1.8.2"
   val activity = "androidx.activity:activity-compose:1.8.2"
   val toolingData = "androidx.compose.ui:ui-tooling-data:1.6.0"
-  val coil = "io.coil-kt:coil-compose:2.5.0"
+  private val coilVersion = "3.4.0"
+  val coil = "io.coil-kt.coil3:coil-compose:$coilVersion"
+  val coilNetwork = "io.coil-kt.coil3:coil-network-okhttp:$coilVersion"
 }
 
 object RaTeX {
@@ -48,5 +50,5 @@ object Commonmark {
 object AndroidConfiguration {
   val minSdk = 21
   val targetSdk = 34
-  val compileSdk = targetSdk
+  val compileSdk = 35
 }

@@ -14,9 +14,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import coil.size.Size
+import androidx.compose.runtime.collectAsState
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.size.Size
 
 private val DEFAULT_IMAGE_SIZE = 64.dp
 private val MIN_IMAGE_SIZE = 16.dp
@@ -39,12 +41,14 @@ internal actual fun RemoteImage(
       .build()
   )
 
+  val painterState by painter.state.collectAsState()
+
   val density = LocalDensity.current
   var isMinimumSize = false
   BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
     val sizeModifier by remember(density, painter) {
       derivedStateOf {
-        val painterIntrinsicSize = painter.state.painter?.intrinsicSize
+        val painterIntrinsicSize = painterState.painter?.intrinsicSize
         if (painterIntrinsicSize != null &&
           painterIntrinsicSize.isSpecified &&
           painterIntrinsicSize.width != Float.POSITIVE_INFINITY &&
