@@ -45,13 +45,13 @@ subprojects {
   }
 
   tasks.withType<KotlinCompile>().all {
-    kotlinOptions {
+    compilerOptions {
       // Allow warnings when running from IDE, makes it easier to experiment.
       if (!isRunningFromIde()) {
-        allWarningsAsErrors = true
+        allWarningsAsErrors.set(true)
       }
 
-      freeCompilerArgs = listOf("-opt-in=kotlin.RequiresOptIn", "-Xexpect-actual-classes")
+      freeCompilerArgs.addAll("-opt-in=kotlin.RequiresOptIn", "-Xexpect-actual-classes")
     }
   }
 

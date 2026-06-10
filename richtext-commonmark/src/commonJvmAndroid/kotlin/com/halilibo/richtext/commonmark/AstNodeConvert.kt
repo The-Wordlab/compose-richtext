@@ -160,7 +160,6 @@ internal fun convert(
         CENTER -> AstTableCellAlignment.CENTER
         RIGHT -> AstTableCellAlignment.RIGHT
         null -> AstTableCellAlignment.LEFT
-        else -> AstTableCellAlignment.LEFT
       }
     )
     is Strikethrough -> AstStrikethrough(

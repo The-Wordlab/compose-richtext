@@ -21,7 +21,7 @@ dependencies {
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).all {
-  kotlinOptions {
-    freeCompilerArgs = freeCompilerArgs + "-Xinline-classes"
+  compilerOptions {
+    freeCompilerArgs.add("-Xinline-classes")
   }
 }

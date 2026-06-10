@@ -437,7 +437,9 @@ private fun calculateBreakpoints(
     val next = if (index < leaves.size - 1) leaves[index + 1] else null
     if (next != null && current.bounds.bottom > next.bounds.top) {
       // Next node overlaps current node, so this node can't be a breakpoint.
-      leaves.removeFirst()
+      // removeAt(0), not removeFirst(): the latter resolves to java.util.List.removeFirst
+      // on Kotlin 2.x, which requires API 35 on Android.
+      leaves.removeAt(0)
       // The same index will now point to the next node, so don't increment index.
     } else {
       breakpoints += current.bounds
