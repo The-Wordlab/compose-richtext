@@ -32,4 +32,27 @@ class LatexDelimiterNormalizerTest {
         val result = normalizeLatexDelimiters(input)
         assertEquals("Inline \$x\$ and dollar \$y\$ and block \$\$z\$\$", result)
     }
+
+    @Test
+    fun `normalizeLatexDelimiters should trim spaces padding inline delimiters`() {
+        // Backends commonly pad delimiters with spaces. Without trimming the result would be
+        // "$ f = ... Hz $", which violates CommonMark's flanking rules and leaks literal dollars.
+        val input = "Jawab: \\( f = \\frac{1}{0,25} = 4 \\text{ Hz} \\)"
+        val result = normalizeLatexDelimiters(input)
+        assertEquals("Jawab: \$f = \\frac{1}{0,25} = 4 \\text{ Hz}\$", result)
+    }
+
+    @Test
+    fun `normalizeLatexDelimiters should trim spaces padding block delimiters`() {
+        val input = "Block \\[ \\sum_{i=1}^n i \\]"
+        val result = normalizeLatexDelimiters(input)
+        assertEquals("Block \$\$\\sum_{i=1}^n i\$\$", result)
+    }
+
+    @Test
+    fun `normalizeLatexDelimiters should trim multiline block delimiters`() {
+        val input = "Rumus:\n\\[\n  f = \\frac{n}{t}\n\\]"
+        val result = normalizeLatexDelimiters(input)
+        assertEquals("Rumus:\n\$\$f = \\frac{n}{t}\$\$", result)
+    }
 }
