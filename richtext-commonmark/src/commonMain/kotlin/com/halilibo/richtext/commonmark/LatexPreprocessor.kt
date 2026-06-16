@@ -15,6 +15,13 @@ package com.halilibo.richtext.commonmark
  * - `\(...\)` → `$...$`
  * - `\[...\]` → `$$...$$`
  *
+ * The captured inner content is trimmed before wrapping in dollar signs. This is required
+ * because backends commonly pad delimiters with spaces (e.g. `\( f = x \)`), and CommonMark
+ * applies emphasis-style flanking rules to the custom `$` delimiter: an opening `$` may not be
+ * followed by whitespace and a closing `$` may not be preceded by whitespace. Without trimming,
+ * `$ f = x $` fails both rules, so the delimiter processor never fires and the dollar signs leak
+ * through as literal text instead of rendering as math.
+ *
  * @param content The markdown content that may contain backslash-notation LaTeX
  * @return Content with normalized delimiters
  */
@@ -23,12 +30,12 @@ internal fun normalizeLatexDelimiters(content: String): String {
 
   // Convert \(...\) to $...$
   result = result.replace(INLINE_PAREN_REGEX) { match ->
-    "\$${match.groupValues[1]}\$"
+    "\$${match.groupValues[1].trim()}\$"
   }
 
   // Convert \[...\] to $$...$$
   result = result.replace(BLOCK_BRACKET_REGEX) { match ->
-    "\$\$${match.groupValues[1]}\$\$"
+    "\$\$${match.groupValues[1].trim()}\$\$"
   }
 
   return result
