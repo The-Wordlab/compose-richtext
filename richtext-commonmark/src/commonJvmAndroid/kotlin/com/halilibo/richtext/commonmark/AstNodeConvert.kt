@@ -3,6 +3,7 @@ package com.halilibo.richtext.commonmark
 import com.halilibo.richtext.commonmark.math.MathDisplayBlock
 import com.halilibo.richtext.commonmark.math.MathExtension
 import com.halilibo.richtext.commonmark.math.MathInlineNode
+import com.halilibo.richtext.commonmark.math.normalizeParsedMath
 import com.halilibo.richtext.markdown.node.AstBlockQuote
 import com.halilibo.richtext.markdown.node.AstCode
 import com.halilibo.richtext.markdown.node.AstDisplayMath
@@ -73,6 +74,7 @@ import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.Text
 import org.commonmark.node.ThematicBreak
 import org.commonmark.parser.Parser
+import org.commonmark.parser.IncludeSourceSpans
 
 /**
  * Converts common-markdown tree to AstNode tree in a recursive fashion.
@@ -192,6 +194,7 @@ public actual class CommonmarkAstNodeParser actual constructor(
   options: CommonMarkdownParseOptions
 ) {
 
+  private val enableLatex = options.enableLatex
   private val parser = Parser.builder()
     .extensions(
       listOfNotNull(
@@ -201,6 +204,7 @@ public actual class CommonmarkAstNodeParser actual constructor(
         if (options.enableLatex) MathExtension.create() else null,
       )
     )
+    .includeSourceSpans(if (enableLatex) IncludeSourceSpans.BLOCKS_AND_INLINES else IncludeSourceSpans.NONE)
     .build()
 
   public actual fun parse(text: String): AstNode {
@@ -209,10 +213,11 @@ public actual class CommonmarkAstNodeParser actual constructor(
         "Could not parse the given text content into a meaningful Markdown representation!"
       )
 
+    if (enableLatex) normalizeParsedMath(commonmarkNode, text)
+
     return convert(commonmarkNode)
       ?: throw IllegalArgumentException(
         "Could not convert the generated Commonmark Node into an ASTNode!"
       )
   }
 }
-
