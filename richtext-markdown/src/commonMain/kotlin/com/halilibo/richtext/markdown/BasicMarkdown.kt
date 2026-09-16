@@ -158,13 +158,13 @@ private val DefaultAstNodeComposer = object : AstBlockNodeComposer {
       is AstUnorderedList -> {
         FormattedList(
           listType = Unordered,
-          items = astNode.filterChildrenType<AstListItem>().toList()
-        ) { astListItem ->
+          items = listEntries(astNode.filterChildrenType<AstListItem>().toList())
+        ) { entry ->
           // if this list item has no child, it should at least emit a single pixel layout.
-          if (astListItem.links.firstChild == null) {
+          if (entry.node.links.firstChild == null) {
             BasicText("")
           } else {
-            visitChildren(astListItem)
+            ProvideTailOffset(entry.tailOffset) { visitChildren(entry.node) }
           }
         }
       }
@@ -172,14 +172,14 @@ private val DefaultAstNodeComposer = object : AstBlockNodeComposer {
       is AstOrderedList -> {
         FormattedList(
           listType = Ordered,
-          items = astNode.childrenSequence().toList(),
+          items = listEntries(astNode.childrenSequence().toList()),
           startIndex = astNodeType.startNumber - 1,
-        ) { astListItem ->
+        ) { entry ->
           // if this list item has no child, it should at least emit a single pixel layout.
-          if (astListItem.links.firstChild == null) {
+          if (entry.node.links.firstChild == null) {
             BasicText("")
           } else {
-            visitChildren(astListItem)
+            ProvideTailOffset(entry.tailOffset) { visitChildren(entry.node) }
           }
         }
       }
@@ -272,20 +272,57 @@ internal fun RichTextScope.renderChildren(
     }
     return
   }
-  val tailOffset = LocalRichTextTailOffset.current
   val children = node.childrenSequence().toList()
-  var following = tailOffset
-  val offsets = IntArray(children.size)
-  for (index in children.indices.reversed()) {
-    offsets[index] = following
-    following += children[index].renderedTextLength()
-  }
+  val offsets = tailOffsetsOrNull(children)
   children.forEachIndexed { index, child ->
-    CompositionLocalProvider(LocalRichTextTailOffset provides offsets[index]) {
+    ProvideTailOffset(offsets?.get(index)) {
       RecursiveRenderMarkdownAst(astNode = child, astNodeComposer = astNodeComposer)
     }
   }
 }
+
+/**
+ * The characters that follow each of [nodes], for the fade to ramp across. Null when no fade is
+ * set, which is the common case and skips the bookkeeping entirely.
+ */
+@Composable
+internal fun tailOffsetsOrNull(nodes: List<AstNode>): IntArray? {
+  if (LocalRichTextFadeIn.current == null) return null
+  var following = LocalRichTextTailOffset.current
+  val offsets = IntArray(nodes.size)
+  for (index in nodes.indices.reversed()) {
+    offsets[index] = following
+    following += nodes[index].renderedTextLength()
+  }
+  return offsets
+}
+
+internal fun IntArray?.tailOffsetOf(nodes: List<AstNode>, node: AstNode): Int? {
+  val offsets = this ?: return null
+  val index = nodes.indexOfFirst { it === node }
+  return if (index < 0) null else offsets[index]
+}
+
+@Composable
+internal fun ProvideTailOffset(tailOffset: Int?, content: @Composable () -> Unit) {
+  if (tailOffset == null) {
+    content()
+  } else {
+    CompositionLocalProvider(LocalRichTextTailOffset provides tailOffset, content = content)
+  }
+}
+
+/**
+ * A list renders its items through [FormattedList] rather than the recursive walk, so each item
+ * has to carry its own distance from the end or every item's tail fades as if it were the newest.
+ */
+@Composable
+private fun listEntries(items: List<AstNode>): List<ListEntry> {
+  val offsets = tailOffsetsOrNull(items)
+  return items.mapIndexed { index, node -> ListEntry(node, offsets?.get(index)) }
+}
+
+private class ListEntry(val node: AstNode, val tailOffset: Int?)
 
 /**
  * How many characters this subtree contributes to the rendered output. Decorations a renderer adds
