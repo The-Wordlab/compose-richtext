@@ -2,14 +2,17 @@ package com.halilibo.richtext.markdown
 
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.halilibo.richtext.markdown.node.AstBlockNodeType
 import com.halilibo.richtext.markdown.node.AstBlockQuote
+import com.halilibo.richtext.markdown.node.AstCode
 import com.halilibo.richtext.markdown.node.AstDisplayMath
 import com.halilibo.richtext.markdown.node.AstDocument
 import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
+import com.halilibo.richtext.markdown.node.AstHardLineBreak
 import com.halilibo.richtext.markdown.node.AstHeading
 import com.halilibo.richtext.markdown.node.AstHtmlBlock
 import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
@@ -19,6 +22,7 @@ import com.halilibo.richtext.markdown.node.AstListItem
 import com.halilibo.richtext.markdown.node.AstNode
 import com.halilibo.richtext.markdown.node.AstOrderedList
 import com.halilibo.richtext.markdown.node.AstParagraph
+import com.halilibo.richtext.markdown.node.AstSoftLineBreak
 import com.halilibo.richtext.markdown.node.AstTableBody
 import com.halilibo.richtext.markdown.node.AstTableCell
 import com.halilibo.richtext.markdown.node.AstTableHeader
@@ -34,6 +38,8 @@ import com.halilibo.richtext.ui.Heading
 import com.halilibo.richtext.ui.HorizontalRule
 import com.halilibo.richtext.ui.ListType.Ordered
 import com.halilibo.richtext.ui.ListType.Unordered
+import com.halilibo.richtext.ui.LocalRichTextFadeIn
+import com.halilibo.richtext.ui.LocalRichTextTailOffset
 import com.halilibo.richtext.ui.RichTextScope
 import com.halilibo.richtext.ui.string.InlineContent
 import com.halilibo.richtext.ui.string.Text
@@ -259,7 +265,43 @@ internal fun RichTextScope.renderChildren(
   node: AstNode?,
   astNodeComposer: AstBlockNodeComposer?
 ) {
-  node?.childrenSequence()?.forEach {
-    RecursiveRenderMarkdownAst(astNode = it, astNodeComposer = astNodeComposer)
+  node ?: return
+  if (LocalRichTextFadeIn.current == null) {
+    node.childrenSequence().forEach {
+      RecursiveRenderMarkdownAst(astNode = it, astNodeComposer = astNodeComposer)
+    }
+    return
   }
+  val tailOffset = LocalRichTextTailOffset.current
+  val children = node.childrenSequence().toList()
+  var following = tailOffset
+  val offsets = IntArray(children.size)
+  for (index in children.indices.reversed()) {
+    offsets[index] = following
+    following += children[index].renderedTextLength()
+  }
+  children.forEachIndexed { index, child ->
+    CompositionLocalProvider(LocalRichTextTailOffset provides offsets[index]) {
+      RecursiveRenderMarkdownAst(astNode = child, astNodeComposer = astNodeComposer)
+    }
+  }
+}
+
+/**
+ * How many characters this subtree contributes to the rendered output. Decorations a renderer adds
+ * on its own — list bullets, block quote bars — are not counted, so this is close rather than exact.
+ */
+private fun AstNode.renderedTextLength(): Int {
+  var length = when (val nodeType = type) {
+    is AstText -> nodeType.literal.length
+    is AstCode -> nodeType.literal.length
+    is AstFencedCodeBlock -> nodeType.literal.trim().length
+    is AstIndentedCodeBlock -> nodeType.literal.trim().length
+    is AstHtmlBlock -> nodeType.literal.length
+    is AstDisplayMath -> nodeType.literal.length
+    is AstSoftLineBreak, is AstHardLineBreak -> 1
+    else -> 0
+  }
+  childrenSequence().forEach { length += it.renderedTextLength() }
+  return length
 }
