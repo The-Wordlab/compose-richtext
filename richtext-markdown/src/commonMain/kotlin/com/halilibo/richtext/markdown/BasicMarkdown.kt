@@ -2,14 +2,17 @@ package com.halilibo.richtext.markdown
 
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.halilibo.richtext.markdown.node.AstBlockNodeType
 import com.halilibo.richtext.markdown.node.AstBlockQuote
+import com.halilibo.richtext.markdown.node.AstCode
 import com.halilibo.richtext.markdown.node.AstDisplayMath
 import com.halilibo.richtext.markdown.node.AstDocument
 import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
+import com.halilibo.richtext.markdown.node.AstHardLineBreak
 import com.halilibo.richtext.markdown.node.AstHeading
 import com.halilibo.richtext.markdown.node.AstHtmlBlock
 import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
@@ -19,6 +22,7 @@ import com.halilibo.richtext.markdown.node.AstListItem
 import com.halilibo.richtext.markdown.node.AstNode
 import com.halilibo.richtext.markdown.node.AstOrderedList
 import com.halilibo.richtext.markdown.node.AstParagraph
+import com.halilibo.richtext.markdown.node.AstSoftLineBreak
 import com.halilibo.richtext.markdown.node.AstTableBody
 import com.halilibo.richtext.markdown.node.AstTableCell
 import com.halilibo.richtext.markdown.node.AstTableHeader
@@ -34,6 +38,8 @@ import com.halilibo.richtext.ui.Heading
 import com.halilibo.richtext.ui.HorizontalRule
 import com.halilibo.richtext.ui.ListType.Ordered
 import com.halilibo.richtext.ui.ListType.Unordered
+import com.halilibo.richtext.ui.LocalRichTextFadeIn
+import com.halilibo.richtext.ui.LocalRichTextTailOffset
 import com.halilibo.richtext.ui.RichTextScope
 import com.halilibo.richtext.ui.string.InlineContent
 import com.halilibo.richtext.ui.string.Text
@@ -152,13 +158,13 @@ private val DefaultAstNodeComposer = object : AstBlockNodeComposer {
       is AstUnorderedList -> {
         FormattedList(
           listType = Unordered,
-          items = astNode.filterChildrenType<AstListItem>().toList()
-        ) { astListItem ->
+          items = listEntries(astNode.filterChildrenType<AstListItem>().toList())
+        ) { entry ->
           // if this list item has no child, it should at least emit a single pixel layout.
-          if (astListItem.links.firstChild == null) {
+          if (entry.node.links.firstChild == null) {
             BasicText("")
           } else {
-            visitChildren(astListItem)
+            ProvideTailOffset(entry.tailOffset) { visitChildren(entry.node) }
           }
         }
       }
@@ -166,14 +172,14 @@ private val DefaultAstNodeComposer = object : AstBlockNodeComposer {
       is AstOrderedList -> {
         FormattedList(
           listType = Ordered,
-          items = astNode.childrenSequence().toList(),
+          items = listEntries(astNode.childrenSequence().toList()),
           startIndex = astNodeType.startNumber - 1,
-        ) { astListItem ->
+        ) { entry ->
           // if this list item has no child, it should at least emit a single pixel layout.
-          if (astListItem.links.firstChild == null) {
+          if (entry.node.links.firstChild == null) {
             BasicText("")
           } else {
-            visitChildren(astListItem)
+            ProvideTailOffset(entry.tailOffset) { visitChildren(entry.node) }
           }
         }
       }
@@ -259,7 +265,80 @@ internal fun RichTextScope.renderChildren(
   node: AstNode?,
   astNodeComposer: AstBlockNodeComposer?
 ) {
-  node?.childrenSequence()?.forEach {
-    RecursiveRenderMarkdownAst(astNode = it, astNodeComposer = astNodeComposer)
+  node ?: return
+  if (LocalRichTextFadeIn.current == null) {
+    node.childrenSequence().forEach {
+      RecursiveRenderMarkdownAst(astNode = it, astNodeComposer = astNodeComposer)
+    }
+    return
   }
+  val children = node.childrenSequence().toList()
+  val offsets = tailOffsetsOrNull(children)
+  children.forEachIndexed { index, child ->
+    ProvideTailOffset(offsets?.get(index)) {
+      RecursiveRenderMarkdownAst(astNode = child, astNodeComposer = astNodeComposer)
+    }
+  }
+}
+
+/**
+ * The characters that follow each of [nodes], for the fade to ramp across. Null when no fade is
+ * set, which is the common case and skips the bookkeeping entirely.
+ */
+@Composable
+internal fun tailOffsetsOrNull(nodes: List<AstNode>): IntArray? {
+  if (LocalRichTextFadeIn.current == null) return null
+  var following = LocalRichTextTailOffset.current
+  val offsets = IntArray(nodes.size)
+  for (index in nodes.indices.reversed()) {
+    offsets[index] = following
+    following += nodes[index].renderedTextLength()
+  }
+  return offsets
+}
+
+internal fun IntArray?.tailOffsetOf(nodes: List<AstNode>, node: AstNode): Int? {
+  val offsets = this ?: return null
+  val index = nodes.indexOfFirst { it === node }
+  return if (index < 0) null else offsets[index]
+}
+
+@Composable
+internal fun ProvideTailOffset(tailOffset: Int?, content: @Composable () -> Unit) {
+  if (tailOffset == null) {
+    content()
+  } else {
+    CompositionLocalProvider(LocalRichTextTailOffset provides tailOffset, content = content)
+  }
+}
+
+/**
+ * A list renders its items through [FormattedList] rather than the recursive walk, so each item
+ * has to carry its own distance from the end or every item's tail fades as if it were the newest.
+ */
+@Composable
+private fun listEntries(items: List<AstNode>): List<ListEntry> {
+  val offsets = tailOffsetsOrNull(items)
+  return items.mapIndexed { index, node -> ListEntry(node, offsets?.get(index)) }
+}
+
+private class ListEntry(val node: AstNode, val tailOffset: Int?)
+
+/**
+ * How many characters this subtree contributes to the rendered output. Decorations a renderer adds
+ * on its own — list bullets, block quote bars — are not counted, so this is close rather than exact.
+ */
+private fun AstNode.renderedTextLength(): Int {
+  var length = when (val nodeType = type) {
+    is AstText -> nodeType.literal.length
+    is AstCode -> nodeType.literal.length
+    is AstFencedCodeBlock -> nodeType.literal.trim().length
+    is AstIndentedCodeBlock -> nodeType.literal.trim().length
+    is AstHtmlBlock -> nodeType.literal.length
+    is AstDisplayMath -> nodeType.literal.length
+    is AstSoftLineBreak, is AstHardLineBreak -> 1
+    else -> 0
+  }
+  childrenSequence().forEach { length += it.renderedTextLength() }
+  return length
 }

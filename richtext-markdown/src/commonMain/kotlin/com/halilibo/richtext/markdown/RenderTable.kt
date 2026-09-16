@@ -11,32 +11,43 @@ import com.halilibo.richtext.ui.Table
 
 @Composable
 internal fun RichTextScope.RenderTable(node: AstNode) {
+  val headerCells = node.filterChildrenType<AstTableHeader>()
+    .firstOrNull()
+    ?.filterChildrenType<AstTableRow>()
+    ?.firstOrNull()
+    ?.filterChildrenType<AstTableCell>()
+    ?.toList()
+    .orEmpty()
+  val bodyRows = node.filterChildrenType<AstTableBody>()
+    .firstOrNull()
+    ?.filterChildrenType<AstTableRow>()
+    ?.toList()
+    .orEmpty()
+  val cells = headerCells + bodyRows.flatMap { it.filterChildrenType<AstTableCell>().toList() }
+  val offsets = tailOffsetsOrNull(cells)
+
   Table(
     headerRow = {
-      node.filterChildrenType<AstTableHeader>()
-        .firstOrNull()
-        ?.filterChildrenType<AstTableRow>()
-        ?.firstOrNull()
-        ?.filterChildrenType<AstTableCell>()
-        ?.forEach { tableCell ->
-          cell {
+      headerCells.forEach { tableCell ->
+        cell {
+          ProvideTailOffset(offsets.tailOffsetOf(cells, tableCell)) {
             MarkdownRichText(tableCell)
           }
         }
+      }
     }
   ) {
-    node.filterChildrenType<AstTableBody>()
-      .firstOrNull()
-      ?.filterChildrenType<AstTableRow>()
-      ?.forEach { tableRow ->
-        row {
-          tableRow.filterChildrenType<AstTableCell>()
-            .forEach { tableCell ->
-              cell {
+    bodyRows.forEach { tableRow ->
+      row {
+        tableRow.filterChildrenType<AstTableCell>()
+          .forEach { tableCell ->
+            cell {
+              ProvideTailOffset(offsets.tailOffsetOf(cells, tableCell)) {
                 MarkdownRichText(tableCell)
               }
             }
-        }
+          }
       }
+    }
   }
 }
