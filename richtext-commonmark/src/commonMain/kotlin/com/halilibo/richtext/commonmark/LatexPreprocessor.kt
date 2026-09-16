@@ -35,7 +35,8 @@ internal fun normalizeLatexDelimiters(content: String): String {
 
   // Convert \[...\] to $$...$$
   result = result.replace(BLOCK_BRACKET_REGEX) { match ->
-    "\$\$${match.groupValues[1].trim()}\$\$"
+    val latex = match.groupValues[1].trim()
+    if ('\n' in latex) "\$\$\n$latex\n\$\$" else "\$\$$latex\$\$"
   }
 
   return result

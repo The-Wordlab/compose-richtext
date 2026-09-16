@@ -1,6 +1,9 @@
 package com.halilibo.richtext.commonmark
 
 import com.halilibo.richtext.markdown.node.AstDisplayMath
+import com.halilibo.richtext.markdown.node.AstCode
+import com.halilibo.richtext.markdown.node.AstFencedCodeBlock
+import com.halilibo.richtext.markdown.node.AstIndentedCodeBlock
 import com.halilibo.richtext.markdown.node.AstInlineMath
 import com.halilibo.richtext.markdown.node.AstNode
 import com.halilibo.richtext.markdown.node.AstNodeType
@@ -112,5 +115,111 @@ class MathExtensionTest {
 
         val displayMath = types.filterIsInstance<AstDisplayMath>()
         assertTrue(displayMath.isNotEmpty())
+    }
+
+    @Test
+    fun `space padded inline dollar command becomes math`() {
+        val ast = parser.parse("Inline: \$ \\frac{9}{2} \$")
+        val math = ast.collectTypes().filterIsInstance<AstInlineMath>()
+        assertEquals(1, math.size)
+        assertEquals("\\frac{9}{2}", math.single().literal)
+    }
+
+    @Test
+    fun `space padded display dollar command becomes display math`() {
+        val ast = parser.parse("Display: \$\$ \\boxed{\\frac{9}{2}} \$\$")
+        val math = ast.collectTypes().filterIsInstance<AstInlineMath>()
+        assertEquals(1, math.size)
+        assertTrue(math.single().displayMode)
+        assertEquals("\\boxed{\\frac{9}{2}}", math.single().literal)
+    }
+
+    @Test
+    fun `multiline bracket cases reach the renderer as a single LaTeX line`() {
+        val markdown = """
+            \[
+            \begin{cases}
+            a) \frac{7}{2} \\
+            b) \frac{11}{9}
+            \end{cases}
+            \]
+        """.trimIndent()
+        val ast = parser.parse(normalizeLatexDelimiters(markdown))
+        val math = ast.collectTypes().filterIsInstance<AstDisplayMath>()
+        assertEquals(1, math.size)
+        assertEquals("\\begin{cases} a) \\frac{7}{2} \\\\ b) \\frac{11}{9} \\end{cases}", math.single().literal)
+    }
+
+    @Test
+    fun `multiline bracket array reaches the renderer as a single LaTeX line`() {
+        val markdown = """
+            \[
+            \begin{array}{r|l}
+            A & \frac{9}{2} \\
+            B & \frac{11}{9}
+            \end{array}
+            \]
+        """.trimIndent()
+        val ast = parser.parse(normalizeLatexDelimiters(markdown))
+        val math = ast.collectTypes().filterIsInstance<AstDisplayMath>()
+        assertEquals(1, math.size)
+        assertEquals("\\begin{array}{r|l} A & \\frac{9}{2} \\\\ B & \\frac{11}{9} \\end{array}", math.single().literal)
+    }
+
+    @Test
+    fun `fenced PostgreSQL dollar block keeps line breaks and is not math`() {
+        val markdown = """
+            ```sql
+            DO ${'$'}${'$'}
+            -- a SQL comment
+            SELECT 1;
+            ${'$'}${'$'};
+            ```
+        """.trimIndent()
+        val ast = parser.parse(markdown)
+        val nodes = ast.collectTypes()
+        assertTrue(nodes.filterIsInstance<AstInlineMath>().isEmpty())
+        assertTrue(nodes.filterIsInstance<AstDisplayMath>().isEmpty())
+        val code = nodes.filterIsInstance<AstFencedCodeBlock>().single().literal
+        assertTrue(code.contains("DO ${'$'}${'$'}\n-- a SQL comment\nSELECT 1;\n${'$'}${'$'};"))
+    }
+
+    @Test
+    fun `indented and inline code containing padded math remain code`() {
+        val markdown = """
+            `${'$'} \frac{9}{2} ${'$'}`
+
+                DO ${'$'}${'$'}
+                SELECT 1;
+                ${'$'}${'$'};
+        """.trimIndent()
+        val nodes = parser.parse(markdown).collectTypes()
+        assertTrue(nodes.filterIsInstance<AstInlineMath>().isEmpty())
+        assertTrue(nodes.filterIsInstance<AstDisplayMath>().isEmpty())
+        assertEquals("${'$'} \\frac{9}{2} ${'$'}", nodes.filterIsInstance<AstCode>().single().literal)
+        assertTrue(nodes.filterIsInstance<AstIndentedCodeBlock>().single().literal.contains("DO ${'$'}${'$'}\nSELECT 1;"))
+    }
+
+    @Test
+    fun `currency and escaped dollar remain prose`() {
+        val currency = parser.parse("The price moved from ${'$'} 5 to ${'$'} 10.")
+        val escaped = parser.parse("Literal: \\${'$'} \\frac{9}{2} ${'$'}")
+        assertTrue(currency.collectTypes().filterIsInstance<AstInlineMath>().isEmpty())
+        assertTrue(escaped.collectTypes().filterIsInstance<AstInlineMath>().isEmpty())
+    }
+
+    @Test
+    fun `an escaped dollar does not hide later real math`() {
+        val ast = parser.parse("Literal: \\${'$'} \\frac{9}{2} ${'$'}; real: ${'$'} \\frac{11}{9} ${'$'}")
+        val math = ast.collectTypes().filterIsInstance<AstInlineMath>()
+        assertEquals(1, math.size)
+        assertEquals("\\frac{11}{9}", math.single().literal)
+    }
+
+    @Test
+    fun `two padded commands in one sentence both become math`() {
+        val ast = parser.parse("First ${'$'} \\frac{9}{2} ${'$'} and second ${'$'} \\frac{11}{9} ${'$'}.")
+        val math = ast.collectTypes().filterIsInstance<AstInlineMath>()
+        assertEquals(listOf("\\frac{9}{2}", "\\frac{11}{9}"), math.map { it.literal })
     }
 }
