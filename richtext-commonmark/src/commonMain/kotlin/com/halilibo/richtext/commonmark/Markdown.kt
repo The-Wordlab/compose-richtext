@@ -1,8 +1,6 @@
 package com.halilibo.richtext.commonmark
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import com.halilibo.richtext.markdown.AstBlockNodeComposer
 import com.halilibo.richtext.markdown.BasicMarkdown
@@ -27,22 +25,18 @@ public fun RichTextScope.Markdown(
     CommonmarkAstNodeParser(markdownParseOptions)
   }
 
-  val astRootNode by produceState<AstNode?>(
-    initialValue = null,
-    key1 = commonmarkAstNodeParser,
-    key2 = content
-  ) {
+  // Parsed in composition, not after it: a view composed without its text has no height for a
+  // frame, and a list holding it scrolls to fill the gap.
+  val astRootNode = remember(commonmarkAstNodeParser, content) {
     val normalizedContent = if (markdownParseOptions.enableLatex) {
       normalizeLatexDelimiters(content)
     } else {
       content
     }
-    value = commonmarkAstNodeParser.parse(normalizedContent)
+    commonmarkAstNodeParser.parse(normalizedContent)
   }
 
-  astRootNode?.let {
-    BasicMarkdown(astNode = it, astBlockNodeComposer = astBlockNodeComposer)
-  }
+  BasicMarkdown(astNode = astRootNode, astBlockNodeComposer = astBlockNodeComposer)
 }
 
 /**
