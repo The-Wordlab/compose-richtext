@@ -22,10 +22,14 @@ package com.halilibo.richtext.commonmark
  * `$ f = x $` fails both rules, so the delimiter processor never fires and the dollar signs leak
  * through as literal text instead of rendering as math.
  *
+ * Content that contains code is returned unchanged, so LaTeX shown in code samples stays as written.
+ *
  * @param content The markdown content that may contain backslash-notation LaTeX
  * @return Content with normalized delimiters
  */
 internal fun normalizeLatexDelimiters(content: String): String {
+  if ('`' in content) return content
+
   var result = content
 
   // Convert \(...\) to $...$
@@ -42,5 +46,5 @@ internal fun normalizeLatexDelimiters(content: String): String {
   return result
 }
 
-private val INLINE_PAREN_REGEX = Regex("""\\\((.+?)\\\)""")
+private val INLINE_PAREN_REGEX = Regex("""\\\((.+)\\\)""")
 private val BLOCK_BRACKET_REGEX = Regex("""\\\[(.+?)\\\]""", RegexOption.DOT_MATCHES_ALL)

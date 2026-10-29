@@ -55,4 +55,18 @@ class LatexDelimiterNormalizerTest {
         val result = normalizeLatexDelimiters(input)
         assertEquals("Rumus:\n\$\$f = \\frac{n}{t}\$\$", result)
     }
+
+    @Test
+    fun `normalizeLatexDelimiters should leave latex in code samples untouched`() {
+        val input = "Write `\\(x\\)` to get inline math"
+        val result = normalizeLatexDelimiters(input)
+        assertEquals(input, result)
+    }
+
+    @Test
+    fun `normalizeLatexDelimiters should keep parentheses inside inline math`() {
+        val input = "Area: \\(\\pi (r + 1)^2\\)"
+        val result = normalizeLatexDelimiters(input)
+        assertEquals("Area: \$\\pi (r + 1)^2\$", result)
+    }
 }
