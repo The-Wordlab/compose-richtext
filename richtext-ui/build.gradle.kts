@@ -18,10 +18,6 @@ android {
   }
 }
 
-dependencies {
-  add("debugImplementation", "androidx.compose.ui:ui-test-manifest:1.8.2")
-}
-
 kotlin {
   sourceSets {
     val commonMain by getting {
@@ -38,6 +34,7 @@ kotlin {
     val androidUnitTest by getting {
       dependencies {
         implementation("androidx.compose.ui:ui-test-junit4:1.8.2")
+        implementation("androidx.compose.ui:ui-test-manifest:1.8.2")
         implementation("junit:junit:4.13.2")
         implementation("org.robolectric:robolectric:4.17")
       }
