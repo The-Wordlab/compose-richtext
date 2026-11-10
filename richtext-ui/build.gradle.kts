@@ -11,6 +11,11 @@ repositories {
 
 android {
   namespace = "com.halilibo.richtext.ui"
+  testOptions.unitTests.isIncludeAndroidResources = true
+  testOptions.unitTests.all {
+    it.maxHeapSize = "1g"
+    it.maxParallelForks = 1
+  }
 }
 
 kotlin {
@@ -25,6 +30,14 @@ kotlin {
 
     val androidMain by getting {
       kotlin.srcDir("src/commonJvmAndroid/kotlin")
+    }
+    val androidUnitTest by getting {
+      dependencies {
+        implementation("androidx.compose.ui:ui-test-junit4:1.8.2")
+        implementation("androidx.compose.ui:ui-test-manifest:1.8.2")
+        implementation("junit:junit:4.13.2")
+        implementation("org.robolectric:robolectric:4.17")
+      }
     }
     val jvmMain by getting {
       kotlin.srcDir("src/commonJvmAndroid/kotlin")
