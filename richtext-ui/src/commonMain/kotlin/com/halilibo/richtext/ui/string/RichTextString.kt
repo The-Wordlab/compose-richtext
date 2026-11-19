@@ -48,7 +48,8 @@ public class RichTextStringStyle(
   public val subscriptStyle: SpanStyle? = null,
   public val superscriptStyle: SpanStyle? = null,
   public val codeStyle: SpanStyle? = null,
-  public val linkStyle: TextLinkStyles? = null
+  public val linkStyle: TextLinkStyles? = null,
+  public val backgrounds: Map<Format, SpanBackground> = emptyMap(),
 ) {
   internal fun merge(otherStyle: RichTextStringStyle?): RichTextStringStyle {
     if (otherStyle == null) return this
@@ -60,7 +61,8 @@ public class RichTextStringStyle(
       subscriptStyle = subscriptStyle.merge(otherStyle.subscriptStyle),
       superscriptStyle = superscriptStyle.merge(otherStyle.superscriptStyle),
       codeStyle = codeStyle.merge(otherStyle.codeStyle),
-      linkStyle = linkStyle?.merge(otherStyle.linkStyle) ?: otherStyle.linkStyle
+      linkStyle = linkStyle?.merge(otherStyle.linkStyle) ?: otherStyle.linkStyle,
+      backgrounds = backgrounds + otherStyle.backgrounds,
     )
   }
 
@@ -73,7 +75,8 @@ public class RichTextStringStyle(
       subscriptStyle = subscriptStyle ?: Subscript.DefaultStyle,
       superscriptStyle = superscriptStyle ?: Superscript.DefaultStyle,
       codeStyle = codeStyle ?: Code.DefaultStyle,
-      linkStyle = linkStyle ?: Link.DefaultStyle
+      linkStyle = linkStyle ?: Link.DefaultStyle,
+      backgrounds = backgrounds,
     )
 
   override fun equals(other: Any?): Boolean {
@@ -88,6 +91,7 @@ public class RichTextStringStyle(
     if (superscriptStyle != other.superscriptStyle) return false
     if (codeStyle != other.codeStyle) return false
     if (linkStyle != other.linkStyle) return false
+    if (backgrounds != other.backgrounds) return false
 
     return true
   }
@@ -101,6 +105,7 @@ public class RichTextStringStyle(
     result = 31 * result + (superscriptStyle?.hashCode() ?: 0)
     result = 31 * result + (codeStyle?.hashCode() ?: 0)
     result = 31 * result + (linkStyle?.hashCode() ?: 0)
+    result = 31 * result + backgrounds.hashCode()
     return result
   }
 
@@ -112,7 +117,8 @@ public class RichTextStringStyle(
         "subscriptStyle=$subscriptStyle, " +
         "superscriptStyle=$superscriptStyle, " +
         "codeStyle=$codeStyle, " +
-        "linkStyle=$linkStyle)"
+        "linkStyle=$linkStyle, " +
+        "backgrounds=$backgrounds)"
   }
 
   public companion object {
@@ -171,6 +177,15 @@ public class RichTextString internal constructor(
           }
       }
     }
+
+  internal fun getSpanBackgrounds(style: RichTextStringStyle): List<SpanBackgroundRange> {
+    if (style.backgrounds.isEmpty()) return emptyList()
+    return taggedString.getStringAnnotations(FormatAnnotationScope, 0, taggedString.length)
+      .mapNotNull { range ->
+        val format = Format.findTag(range.item, formatObjects) ?: return@mapNotNull null
+        style.backgrounds[format]?.let { SpanBackgroundRange(range.start, range.end, it) }
+      }
+  }
 
   internal fun getInlineContents(): Map<String, InlineContent> =
     formatObjects.asSequence()

@@ -2,8 +2,12 @@ package com.halilibo.richtext.ui.string
 
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.text.AnnotatedString
@@ -47,11 +51,25 @@ public fun RichTextScope.Text(
   }
 
   val inlineContents = remember(text) { text.getInlineContents() }
+  val backgrounds = remember(text, style) {
+    text.getSpanBackgrounds((style ?: RichTextStringStyle.Default).resolveDefaults())
+  }
+  var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+  val backgroundModifier = if (backgrounds.isEmpty()) {
+    Modifier
+  } else {
+    Modifier.drawBehind { layout?.let { drawSpanBackgrounds(it, backgrounds) } }
+  }
+  val onLayout: (TextLayoutResult) -> Unit = {
+    layout = it
+    onTextLayout(it)
+  }
 
   if (inlineContents.isEmpty()) {
     Text(
       text = annotated,
-      onTextLayout = onTextLayout,
+      modifier = backgroundModifier,
+      onTextLayout = onLayout,
       softWrap = softWrap,
       overflow = overflow,
       maxLines = maxLines
@@ -66,7 +84,8 @@ public fun RichTextScope.Text(
 
       Text(
         text = annotated,
-        onTextLayout = onTextLayout,
+        modifier = backgroundModifier,
+        onTextLayout = onLayout,
         inlineContent = inlineTextContents,
         softWrap = softWrap,
         overflow = overflow,
