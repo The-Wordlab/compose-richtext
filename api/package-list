@@ -1,0 +1,25 @@
+$dokka.format:html-v1
+$dokka.linkExtension:html
+$dokka.location:com.halilibo.richtext.commonmark.math/MathExtension.Companion///PointingToDeclaration/richtext-commonmark/com.halilibo.richtext.commonmark.math/[jvm]-math-extension/-companion/index.html
+$dokka.location:com.halilibo.richtext.commonmark.math/MathExtension.Companion/create/#/PointingToDeclaration/richtext-commonmark/com.halilibo.richtext.commonmark.math/[jvm]-math-extension/-companion/create.html
+$dokka.location:com.halilibo.richtext.commonmark.math/MathExtension///PointingToDeclaration/richtext-commonmark/com.halilibo.richtext.commonmark.math/[jvm]-math-extension/index.html
+$dokka.location:com.halilibo.richtext.commonmark.math/MathExtension/extend/#org.commonmark.parser.Parser.Builder/PointingToDeclaration/richtext-commonmark/com.halilibo.richtext.commonmark.math/[jvm]-math-extension/extend.html
+module:printing
+com.zachklipp.richtext.ui.printing
+module:richtext-commonmark
+com.halilibo.richtext.commonmark
+com.halilibo.richtext.commonmark.math
+module:richtext-markdown
+com.halilibo.richtext.markdown
+com.halilibo.richtext.markdown.local
+com.halilibo.richtext.markdown.node
+module:richtext-ui
+com.halilibo.richtext.ui
+com.halilibo.richtext.ui.string
+com.halilibo.richtext.ui.util
+module:richtext-ui-material
+com.halilibo.richtext.ui.material
+module:richtext-ui-material3
+com.halilibo.richtext.ui.material3
+module:slideshow
+com.zachklipp.richtext.ui.slideshow
