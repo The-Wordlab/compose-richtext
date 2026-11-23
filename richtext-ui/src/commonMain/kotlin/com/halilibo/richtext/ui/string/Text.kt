@@ -95,7 +95,7 @@ public fun RichTextScope.Text(
   }
 }
 
-private fun AnnotatedString.fadeTrailing(
+internal fun AnnotatedString.fadeTrailing(
   fadeIn: RichTextFadeIn?,
   tailOffset: Int,
   color: Color
@@ -106,13 +106,58 @@ private fun AnnotatedString.fadeTrailing(
   if (fadedCount <= 0) return this
   return buildAnnotatedString {
     append(this@fadeTrailing)
-    for (index in end - fadedCount until end) {
-      val distance = tailOffset + (end - 1 - index)
+    var clusterEnd = end
+    while (clusterEnd > end - fadedCount) {
+      val clusterStart = text.clusterStartBefore(clusterEnd)
+      val distance = tailOffset + (end - clusterEnd)
       val alpha = fadeIn.minAlpha + (1f - fadeIn.minAlpha) * distance / fadeIn.characters
-      addStyle(SpanStyle(color = color.copy(alpha = alpha)), index, index + 1)
+      addStyle(SpanStyle(color = color.copy(alpha = alpha)), clusterStart, clusterEnd)
+      clusterEnd = clusterStart
     }
   }
 }
+
+private fun String.clusterStartBefore(end: Int): Int {
+  var start = end - 1
+  while (start > 0 && splitsACharacter(start)) start--
+  return start
+}
+
+private fun String.splitsACharacter(index: Int): Boolean {
+  val previous = this[index - 1]
+  val next = this[index]
+  if (previous.isHighSurrogate() && next.isLowSurrogate()) return true
+  if (previous == ZERO_WIDTH_JOINER || next == ZERO_WIDTH_JOINER) return true
+  if (next == VARIATION_SELECTOR || next == KEYCAP) return true
+  val nextCodePoint = codePointFrom(index)
+  return nextCodePoint in SKIN_TONES ||
+    (nextCodePoint in REGIONAL_INDICATORS && codePointUpTo(index) in REGIONAL_INDICATORS)
+}
+
+private fun String.codePointFrom(index: Int): Int {
+  val high = this[index]
+  val low = getOrNull(index + 1)
+  return if (high.isHighSurrogate() && low != null && low.isLowSurrogate()) codePoint(high, low) else high.code
+}
+
+private fun String.codePointUpTo(index: Int): Int {
+  val low = this[index - 1]
+  val high = getOrNull(index - 2)
+  return if (low.isLowSurrogate() && high != null && high.isHighSurrogate()) codePoint(high, low) else low.code
+}
+
+private fun codePoint(high: Char, low: Char): Int =
+  SUPPLEMENTARY_START + ((high.code - HIGH_SURROGATE_START) shl SURROGATE_BITS) + (low.code - LOW_SURROGATE_START)
+
+private const val ZERO_WIDTH_JOINER = '\u200D'
+private const val VARIATION_SELECTOR = '\uFE0F'
+private const val KEYCAP = '\u20E3'
+private const val SUPPLEMENTARY_START = 0x10000
+private const val HIGH_SURROGATE_START = 0xD800
+private const val LOW_SURROGATE_START = 0xDC00
+private const val SURROGATE_BITS = 10
+private val SKIN_TONES = 0x1F3FB..0x1F3FF
+private val REGIONAL_INDICATORS = 0x1F1E6..0x1F1FF
 
 private fun AnnotatedString.getConsumableAnnotations(textFormatObjects: Map<String, Any>, offset: Int): Sequence<Format.Link> =
   getStringAnnotations(Format.FormatAnnotationScope, offset, offset)
