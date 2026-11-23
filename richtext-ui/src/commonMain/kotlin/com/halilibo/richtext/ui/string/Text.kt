@@ -131,7 +131,18 @@ private fun String.splitsACharacter(index: Int): Boolean {
   if (next == VARIATION_SELECTOR || next == KEYCAP) return true
   val nextCodePoint = codePointFrom(index)
   return nextCodePoint in SKIN_TONES ||
-    (nextCodePoint in REGIONAL_INDICATORS && codePointUpTo(index) in REGIONAL_INDICATORS)
+    nextCodePoint in TAGS ||
+    (nextCodePoint in REGIONAL_INDICATORS && regionalIndicatorsBefore(index) % 2 == 1)
+}
+
+private fun String.regionalIndicatorsBefore(index: Int): Int {
+  var count = 0
+  var position = index
+  while (position > 0 && codePointUpTo(position) in REGIONAL_INDICATORS) {
+    count++
+    position -= REGIONAL_INDICATOR_UNITS
+  }
+  return count
 }
 
 private fun String.codePointFrom(index: Int): Int {
@@ -158,6 +169,8 @@ private const val LOW_SURROGATE_START = 0xDC00
 private const val SURROGATE_BITS = 10
 private val SKIN_TONES = 0x1F3FB..0x1F3FF
 private val REGIONAL_INDICATORS = 0x1F1E6..0x1F1FF
+private const val REGIONAL_INDICATOR_UNITS = 2
+private val TAGS = 0xE0020..0xE007F
 
 private fun AnnotatedString.getConsumableAnnotations(textFormatObjects: Map<String, Any>, offset: Int): Sequence<Format.Link> =
   getStringAnnotations(Format.FormatAnnotationScope, offset, offset)

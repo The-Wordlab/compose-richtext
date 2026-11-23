@@ -64,6 +64,26 @@ class FadeTrailingTest {
   }
 
   @Test
+  fun `GIVEN a flag spelled with tag characters WHEN fading THEN the tags stay with their flag`() {
+    val england = "\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F"
+
+    val faded = AnnotatedString("a${england}b").fade()
+
+    assertEquals(listOf(0 to 1, 1 to 1 + england.length, 1 + england.length to 2 + england.length), faded.spanRanges())
+  }
+
+  @Test
+  fun `GIVEN several flags in a row WHEN fading THEN each flag gets its own step of the ramp`() {
+    val flags = "\uD83C\uDDEA\uD83C\uDDF8\uD83C\uDDEB\uD83C\uDDF7\uD83C\uDDE9\uD83C\uDDEA"
+
+    val faded = AnnotatedString(flags).fade()
+
+    assertEquals(listOf(0 to 4, 4 to 8, 8 to 12), faded.spanRanges())
+    assertTrue(faded.alphaAt(0) > faded.alphaAt(4))
+    assertTrue(faded.alphaAt(4) > faded.alphaAt(8))
+  }
+
+  @Test
   fun `GIVEN an emoji straddling the start of the ramp WHEN fading THEN it is not cut there either`() {
     val text = "😊" + "x".repeat(fadeIn.characters - 1)
 
