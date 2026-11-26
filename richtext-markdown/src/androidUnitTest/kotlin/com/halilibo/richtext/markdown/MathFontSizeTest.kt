@@ -14,9 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
@@ -38,6 +40,9 @@ import com.halilibo.richtext.ui.string.RichTextStringStyle
 import com.halilibo.richtext.ui.string.Text
 import com.halilibo.richtext.ui.string.richTextString
 import com.halilibo.richtext.ui.string.withFormat
+import io.ratex.DisplayItem
+import io.ratex.DisplayList
+import io.ratex.RaTeXColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -47,6 +52,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.ceil
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [34])
@@ -88,25 +94,57 @@ class MathFontSizeTest {
   }
 
   @Test
-  fun `an inline formula wider than its paragraph scrolls to the final glyphs`() {
-    val cache = RaTeXBitmapCache().apply { storeBitmap(false, 14f, 120) }
+  fun `wide inline and display formulas scroll to the right edge at both text scales`() {
+    val latex = "\\rule{8em}{0.5em}"
+    val rule = DisplayList(
+      width = 8.0, height = 0.5, depth = 0.0,
+      items = listOf(DisplayItem.Rect(0.0, 0.0, 8.0, 0.5, RaTeXColor(0f, 0f, 0f, 1f))),
+    )
+    val parse: suspend (String, Boolean) -> DisplayList = { _, _ -> rule }
+    val config = LatexConfig(inlineFontSize = 1.25.em, displayFontSize = 1.5.em)
+    val bodySize = 16.sp
+    val viewport = 80.dp
+    var fontScale by mutableFloatStateOf(1f)
     val text = richTextString {
-      appendInlineContent(content = InlineContent(useTextRelativeSize = true) { InlineMathContent("x") })
+      appendInlineContent(content = InlineContent(useTextRelativeSize = true) {
+        RaTeXFormula(latex, displayMode = false, modifier = Modifier.testTag("inline"), parse = parse)
+      })
     }
     var placeholderWidth = 0f
     composeRule.setContent {
-      CompositionLocalProvider(LocalRaTeXBitmapCache provides cache, LocalDensity provides Density(1f)) {
-        BasicRichText(Modifier.width(80.dp)) {
-          Text(text, onTextLayout = { placeholderWidth = it.placeholderRects.single()?.width ?: 0f })
+      CompositionLocalProvider(LocalLatexConfig provides config, LocalDensity provides Density(1f, fontScale)) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = bodySize) }) {
+          BasicRichText(Modifier.width(viewport)) {
+            Text(text, onTextLayout = { placeholderWidth = it.placeholderRects.single()?.width ?: 0f })
+            RaTeXFormula(latex, displayMode = true, modifier = Modifier.testTag("display"), parse = parse)
+          }
         }
       }
     }
-    val formula = composeRule.onNode(hasScrollAction(), useUnmergedTree = true)
-    composeRule.waitUntil { placeholderWidth == 80f }
-    val range = formula.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange]
-    assertEquals(40f, range.maxValue(), 0f)
-    formula.performSemanticsAction(SemanticsActions.ScrollBy) { it(40f, 0f) }
-    composeRule.waitUntil { range.value() == 40f }
+
+    for (scale in listOf(1f, 2f)) {
+      composeRule.runOnIdle { fontScale = scale }
+      val density = Density(1f, scale)
+      val viewportPx = with(density) { viewport.toPx() }
+      val bodyPx = with(density) { bodySize.toPx() }
+      composeRule.waitUntil { placeholderWidth == viewportPx }
+      for ((tag, size) in listOf("inline" to config.inlineFontSize, "display" to config.displayFontSize)) {
+        val bitmapWidth = ceil(rule.width * (bodyPx * size.value)).toFloat()
+        val maxScroll = bitmapWidth - viewportPx
+        assertTrue(maxScroll > 0f)
+        val nodes = composeRule.onAllNodes(hasTestTag(tag) and hasScrollAction(), useUnmergedTree = true)
+        composeRule.waitUntil(5_000) {
+          nodes.fetchSemanticsNodes().singleOrNull()?.config
+            ?.get(SemanticsProperties.HorizontalScrollAxisRange)?.maxValue?.invoke() == maxScroll
+        }
+        val node = nodes[0]
+        val semantics = node.fetchSemanticsNode()
+        assertEquals(viewportPx, semantics.boundsInRoot.width, 0f)
+        val range = semantics.config[SemanticsProperties.HorizontalScrollAxisRange]
+        node.performSemanticsAction(SemanticsActions.ScrollBy) { it(maxScroll, 0f) }
+        composeRule.waitUntil { range.value() + viewportPx == bitmapWidth }
+      }
+    }
   }
 
   @Test
