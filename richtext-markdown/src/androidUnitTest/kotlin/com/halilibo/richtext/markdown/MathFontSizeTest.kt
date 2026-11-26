@@ -134,6 +134,7 @@ class MathFontSizeTest {
 
     composeRule.waitUntil { inlineWidth in 23f..25f && blockHeight == 30 + 32 }
     composeRule.runOnIdle { fontScale = 2f }
+    composeRule.waitForIdle()
     composeRule.waitUntil { inlineWidth in 47f..49f && blockHeight == 60 + 32 }
   }
 
