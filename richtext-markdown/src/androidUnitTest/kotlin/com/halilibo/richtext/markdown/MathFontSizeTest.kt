@@ -2,6 +2,7 @@ package com.halilibo.richtext.markdown
 
 import android.app.Application
 import android.graphics.Bitmap
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -11,11 +12,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.halilibo.richtext.ui.BasicRichText
@@ -69,6 +75,28 @@ class MathFontSizeTest {
     }
     composeRule.onNodeWithText("inline source").assertExists()
     composeRule.onNodeWithText("display source").assertExists()
+  }
+
+  @Test
+  fun `an inline formula wider than its paragraph scrolls to the final glyphs`() {
+    val cache = RaTeXBitmapCache().apply { storeBitmap(false, 14f, 120) }
+    val text = richTextString {
+      appendInlineContent(content = InlineContent { InlineMathContent("x") })
+    }
+    var placeholderWidth = 0f
+    composeRule.setContent {
+      CompositionLocalProvider(LocalRaTeXBitmapCache provides cache, LocalDensity provides Density(1f)) {
+        BasicRichText(Modifier.width(80.dp)) {
+          Text(text, onTextLayout = { placeholderWidth = it.placeholderRects.single()?.width ?: 0f })
+        }
+      }
+    }
+    val formula = composeRule.onNode(hasScrollAction(), useUnmergedTree = true)
+    composeRule.waitUntil { placeholderWidth == 80f }
+    val range = formula.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange]
+    assertEquals(40f, range.maxValue(), 0f)
+    formula.performSemanticsAction(SemanticsActions.ScrollBy) { it(40f, 0f) }
+    composeRule.waitUntil { range.value() == 40f }
   }
 
   @Test

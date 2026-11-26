@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -93,7 +94,10 @@ internal fun RaTeXFormula(latex: String, displayMode: Boolean, modifier: Modifie
           BitmapCanvas(result.bitmap, Modifier.size(width, height))
         }
       } else {
-        BitmapCanvas(result.bitmap, modifier.size(width, height))
+        BitmapCanvas(
+          result.bitmap,
+          modifier.widthIn(max = width).horizontalScroll(rememberScrollState()).size(width, height),
+        )
       }
     }
     FormulaTooLarge -> BasicText(
