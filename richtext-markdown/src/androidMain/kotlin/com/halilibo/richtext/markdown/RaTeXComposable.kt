@@ -1,8 +1,8 @@
 package com.halilibo.richtext.markdown
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -22,150 +22,126 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.resolveDefaults
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import com.halilibo.richtext.ui.RichTextScope
+import com.halilibo.richtext.ui.currentTextStyle
 import io.ratex.RaTeXEngine
 import io.ratex.RaTeXFontLoader
 import io.ratex.RaTeXRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.ceil
 
-/**
- * Renders a block-level LaTeX formula centered horizontally using RaTeX.
- */
 @Composable
-internal fun RaTeXBlockFormula(
-  latex: String,
-  textColor: Color,
-  modifier: Modifier = Modifier,
-) {
-  val context = LocalContext.current
-  val density = LocalDensity.current
-  val fontSizePx = with(density) { 18.dp.toPx() }
-  val colorArgb = textColor.toArgb()
-
-  LaunchedEffect(Unit) {
-    withContext(Dispatchers.IO) {
-      RaTeXFontLoader.ensureLoaded(context)
+private fun mathFontSizePx(size: TextUnit, default: Dp): Float = with(LocalDensity.current) {
+  val pixels = when {
+    !size.value.isFinite() || size.value <= 0f -> default.toPx()
+    size.isSp -> size.toPx()
+    size.isEm -> {
+      val direction = LocalLayoutDirection.current
+      val textSize = resolveDefaults(RichTextScope.currentTextStyle, direction).fontSize
+      val textSizePx = if (textSize.isEm) {
+        resolveDefaults(TextStyle.Default, direction).fontSize.toPx() * textSize.value
+      } else {
+        textSize.toPx()
+      }
+      textSizePx * size.value
     }
+    else -> default.toPx()
   }
-
-  val cache = LocalRaTeXBitmapCache.current
-  val bitmapResult by produceState<BitmapResult?>(
-    initialValue = cache?.get(latex, true, fontSizePx, colorArgb),
-    latex, fontSizePx, colorArgb
-  ) {
-    value = try {
-      renderToBitmap(latex, displayMode = true, fontSizePx, colorArgb, cache)
-    } catch (_: Exception) {
-      null
-    }
-  }
-
-  val result = bitmapResult
-  if (result != null) {
-    val widthDp = with(density) { result.size.width.toDp() }
-    val heightDp = with(density) { result.size.height.toDp() }
-    Box(
-      modifier = modifier
-        .fillMaxWidth()
-        .horizontalScroll(rememberScrollState())
-        .padding(vertical = 16.dp),
-      contentAlignment = Alignment.Center
-    ) {
-      BitmapCanvas(
-        bitmap = result.bitmap,
-        modifier = Modifier.size(widthDp, heightDp)
-      )
-    }
-  }
+  pixels.takeIf { it.isFinite() && it > 0f } ?: default.toPx()
 }
 
-/**
- * Renders an inline LaTeX formula using RaTeX.
- */
 @Composable
-internal fun RaTeXInlineFormula(
-  latex: String,
-  textColor: Color,
-  modifier: Modifier = Modifier,
-) {
+internal fun RaTeXFormula(latex: String, displayMode: Boolean, modifier: Modifier = Modifier) {
   val context = LocalContext.current
   val density = LocalDensity.current
-  val fontSizePx = with(density) { 14.dp.toPx() }
-  val colorArgb = textColor.toArgb()
-
-  LaunchedEffect(Unit) {
-    withContext(Dispatchers.IO) {
-      RaTeXFontLoader.ensureLoaded(context)
-    }
+  val config = LocalLatexConfig.current
+  val fontSizePx = if (displayMode) {
+    mathFontSizePx(config.displayFontSize, 18.dp)
+  } else {
+    mathFontSizePx(config.inlineFontSize, 14.dp)
   }
-
+  val colorArgb = config.textColor.toArgb()
   val cache = LocalRaTeXBitmapCache.current
-  val bitmapResult by produceState<BitmapResult?>(
-    initialValue = cache?.get(latex, false, fontSizePx, colorArgb),
-    latex, fontSizePx, colorArgb
+  val rendered by produceState<FormulaResult?>(
+    initialValue = cache?.get(latex, displayMode, fontSizePx, colorArgb),
+    latex, displayMode, fontSizePx, colorArgb, cache,
   ) {
     value = try {
-      renderToBitmap(latex, displayMode = false, fontSizePx, colorArgb, cache)
+      renderToBitmap(context, latex, displayMode, fontSizePx, colorArgb, cache)
     } catch (_: Exception) {
       null
     }
   }
 
-  val result = bitmapResult
-  if (result != null) {
-    val widthDp = with(density) { result.size.width.toDp() }
-    val heightDp = with(density) { result.size.height.toDp() }
-    BitmapCanvas(
-      bitmap = result.bitmap,
-      modifier = modifier.size(widthDp, heightDp)
+  when (val result = rendered) {
+    is BitmapResult -> {
+      val width = with(density) { result.size.width.toDp() }
+      val height = with(density) { result.size.height.toDp() }
+      if (displayMode) {
+        Box(
+          modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 16.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          BitmapCanvas(result.bitmap, Modifier.size(width, height))
+        }
+      } else {
+        BitmapCanvas(result.bitmap, modifier.size(width, height))
+      }
+    }
+    FormulaTooLarge -> BasicText(
+      text = latex,
+      modifier = if (displayMode) modifier.fillMaxWidth().padding(vertical = 16.dp) else modifier,
+      style = RichTextScope.currentTextStyle.copy(color = config.textColor),
     )
+    null -> Unit
   }
 }
 
-/**
- * Pre-rendered bitmap with its pixel dimensions.
- */
-internal class BitmapResult(
-  val bitmap: Bitmap,
-  val size: IntSize,
-)
+internal sealed interface FormulaResult
+internal object FormulaTooLarge : FormulaResult
+internal class BitmapResult(val bitmap: Bitmap, val size: IntSize) : FormulaResult
 
-/**
- * Renders LaTeX to a colored Bitmap on a background thread.
- * The bitmap has the color filter already applied, so drawing it
- * is a single drawBitmap() call — no saveLayer() needed.
- */
+// A chat formula may use up to 4 MiB of ARGB_8888 pixels, with a 4K edge limit for thin textures.
+private const val MAX_BITMAP_PIXELS = 1024 * 1024
+private const val MAX_BITMAP_SIDE = 4096f
+
+internal fun formulaBitmapSize(width: Float, height: Float): IntSize? {
+  if (width !in 0f..MAX_BITMAP_SIDE || height !in 0f..MAX_BITMAP_SIDE) return null
+  val size = IntSize(ceil(width).toInt().coerceAtLeast(1), ceil(height).toInt().coerceAtLeast(1))
+  return size.takeIf { it.width * it.height <= MAX_BITMAP_PIXELS }
+}
+
 private suspend fun renderToBitmap(
+  context: Context,
   latex: String,
   displayMode: Boolean,
   fontSizePx: Float,
   colorArgb: Int,
   cache: RaTeXBitmapCache?,
-): BitmapResult? {
-  // Check cache first
+): FormulaResult {
   cache?.get(latex, displayMode, fontSizePx, colorArgb)?.let { return it }
-
   return withContext(Dispatchers.Default) {
+    RaTeXFontLoader.ensureLoaded(context)
     val displayList = RaTeXEngine.parse(latex, displayMode)
     val renderer = RaTeXRenderer(displayList, fontSizePx) { RaTeXFontLoader.getTypeface(it) }
-
-    val width = maxOf(1, renderer.widthPx.toInt())
-    val height = maxOf(1, renderer.totalHeightPx.toInt())
-
-    // Render to bitmap (black on transparent)
-    val rawBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val rawCanvas = android.graphics.Canvas(rawBitmap)
-    renderer.draw(rawCanvas)
-
-    // Apply color filter to create the final colored bitmap
-    val coloredBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val colorCanvas = android.graphics.Canvas(coloredBitmap)
-    colorCanvas.drawBitmap(rawBitmap, 0f, 0f, COLOR_PAINT_POOL.withColor(colorArgb))
-    rawBitmap.recycle()
-
-    val result = BitmapResult(coloredBitmap, IntSize(width, height))
+    val size = formulaBitmapSize(renderer.widthPx, renderer.totalHeightPx)
+    val result = if (size == null) {
+      FormulaTooLarge
+    } else {
+      val bitmap = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
+      val canvas = android.graphics.Canvas(bitmap)
+      renderer.draw(canvas)
+      canvas.drawColor(colorArgb, PorterDuff.Mode.SRC_IN)
+      BitmapResult(bitmap, size)
+    }
     cache?.put(latex, displayMode, fontSizePx, colorArgb, result)
     result
   }
@@ -185,19 +161,5 @@ private fun BitmapCanvas(
     drawIntoCanvas { canvas ->
       canvas.nativeCanvas.drawBitmap(bitmap, 0f, 0f, null)
     }
-  }
-}
-
-/**
- * Thread-safe Paint pool for applying color filters during bitmap rendering.
- * Avoids allocating Paint objects on every render.
- */
-private object COLOR_PAINT_POOL {
-  private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-
-  @Synchronized
-  fun withColor(colorArgb: Int): android.graphics.Paint {
-    paint.colorFilter = PorterDuffColorFilter(colorArgb, PorterDuff.Mode.SRC_IN)
-    return paint
   }
 }

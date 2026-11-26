@@ -4,6 +4,5 @@ import androidx.compose.runtime.Composable
 
 @Composable
 internal actual fun DisplayMathContent(latex: String) {
-  val config = LocalLatexConfig.current
-  RaTeXBlockFormula(latex = latex, textColor = config.textColor)
+  RaTeXFormula(latex, displayMode = true)
 }

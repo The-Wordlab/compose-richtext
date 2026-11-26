@@ -21,8 +21,8 @@ import androidx.compose.runtime.remember
  */
 public class RaTeXBitmapCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
 
-  private val cache = object : LinkedHashMap<String, BitmapResult>(maxSize + 1, 0.75f, true) {
-    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, BitmapResult>): Boolean {
+  private val cache = object : LinkedHashMap<String, FormulaResult>(maxSize + 1, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FormulaResult>): Boolean {
       return size > maxSize
     }
   }
@@ -31,13 +31,13 @@ public class RaTeXBitmapCache(private val maxSize: Int = DEFAULT_MAX_SIZE) {
     return "$displayMode:$fontSizePx:$colorArgb:$latex"
   }
 
-  internal fun get(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int): BitmapResult? {
+  internal fun get(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int): FormulaResult? {
     synchronized(cache) {
       return cache[key(latex, displayMode, fontSizePx, colorArgb)]
     }
   }
 
-  internal fun put(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int, result: BitmapResult) {
+  internal fun put(latex: String, displayMode: Boolean, fontSizePx: Float, colorArgb: Int, result: FormulaResult) {
     synchronized(cache) {
       val k = key(latex, displayMode, fontSizePx, colorArgb)
       if (!cache.containsKey(k)) {
