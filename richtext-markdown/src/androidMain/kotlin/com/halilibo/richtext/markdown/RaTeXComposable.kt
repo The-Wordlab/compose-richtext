@@ -34,6 +34,7 @@ import io.ratex.DisplayList
 import io.ratex.RaTeXEngine
 import io.ratex.RaTeXFontLoader
 import io.ratex.RaTeXRenderer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.ceil
@@ -72,6 +73,8 @@ internal fun RaTeXFormula(
   ) {
     value = try {
       renderToBitmap(context, latex, displayMode, fontSizePx, colorArgb, cache, parse)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (_: Exception) {
       null
     }
