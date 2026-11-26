@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,17 +19,23 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.halilibo.richtext.ui.BasicRichText
+import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.RichTextThemeProvider
 import com.halilibo.richtext.ui.string.InlineContent
+import com.halilibo.richtext.ui.string.RichTextString
+import com.halilibo.richtext.ui.string.RichTextStringStyle
 import com.halilibo.richtext.ui.string.Text
 import com.halilibo.richtext.ui.string.richTextString
+import com.halilibo.richtext.ui.string.withFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -97,6 +104,56 @@ class MathFontSizeTest {
     assertEquals(40f, range.maxValue(), 0f)
     formula.performSemanticsAction(SemanticsActions.ScrollBy) { it(40f, 0f) }
     composeRule.waitUntil { range.value() == 40f }
+  }
+
+  @Test
+  fun `inline math under a smaller span reserves the measured bitmap size and uses the span for em`() {
+    val cache = RaTeXBitmapCache().apply {
+      storeBitmap(false, 14f, 24)
+      storeBitmap(false, 12f, 18)
+      storeBitmap(false, 18f, 30)
+      storeBitmap(false, 24f, 36)
+    }
+    var actual = IntSize.Zero
+    var reserved = IntSize.Zero
+    var inlineSize by mutableStateOf(TextUnit.Unspecified)
+    var boldSize by mutableStateOf(8.25.sp)
+    val text = richTextString {
+      withFormat(RichTextString.Format.Bold) {
+        appendInlineContent(content = InlineContent(useTextRelativeSize = true) {
+          RaTeXFormula("x", displayMode = false, Modifier.onSizeChanged { actual = it })
+        })
+      }
+      append(" following")
+    }
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides LatexConfig(inlineFontSize = inlineSize),
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f),
+      ) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = 16.sp) }) {
+          val style = RichTextStringStyle(boldStyle = SpanStyle(fontSize = boldSize))
+          BasicRichText(style = RichTextStyle(stringStyle = style)) {
+            Text(text, onTextLayout = { layout ->
+              layout.placeholderRects.single()?.let { reserved = IntSize(it.width.toInt(), it.height.toInt()) }
+            })
+          }
+        }
+      }
+    }
+    fun assertSize(side: Int) {
+      composeRule.waitForIdle()
+      composeRule.runOnIdle {
+        assertEquals(IntSize(side, side), actual)
+        assertEquals(actual, reserved)
+      }
+    }
+    assertSize(24)
+    composeRule.runOnIdle { inlineSize = 1.5.em }
+    assertSize(18)
+    composeRule.runOnIdle { boldSize = 0.75.em }
+    assertSize(30)
   }
 
   @Test

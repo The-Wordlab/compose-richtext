@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.halilibo.richtext.ui.RichTextScope
 import com.halilibo.richtext.ui.currentFontSizePx
 import com.halilibo.richtext.ui.currentTextStyle
+import io.ratex.DisplayList
 import io.ratex.RaTeXEngine
 import io.ratex.RaTeXFontLoader
 import io.ratex.RaTeXRenderer
@@ -49,7 +50,12 @@ private fun mathFontSizePx(size: TextUnit, default: Dp): Float = with(LocalDensi
 }
 
 @Composable
-internal fun RaTeXFormula(latex: String, displayMode: Boolean, modifier: Modifier = Modifier) {
+internal fun RaTeXFormula(
+  latex: String,
+  displayMode: Boolean,
+  modifier: Modifier = Modifier,
+  parse: suspend (String, Boolean) -> DisplayList = { source, display -> RaTeXEngine.parse(source, display) },
+) {
   val context = LocalContext.current
   val density = LocalDensity.current
   val config = LocalLatexConfig.current
@@ -62,10 +68,10 @@ internal fun RaTeXFormula(latex: String, displayMode: Boolean, modifier: Modifie
   val cache = LocalRaTeXBitmapCache.current
   val rendered by produceState<FormulaResult?>(
     initialValue = cache?.get(latex, displayMode, fontSizePx, colorArgb),
-    latex, displayMode, fontSizePx, colorArgb, cache,
+    latex, displayMode, fontSizePx, colorArgb, cache, parse,
   ) {
     value = try {
-      renderToBitmap(context, latex, displayMode, fontSizePx, colorArgb, cache)
+      renderToBitmap(context, latex, displayMode, fontSizePx, colorArgb, cache, parse)
     } catch (_: Exception) {
       null
     }
@@ -119,11 +125,12 @@ private suspend fun renderToBitmap(
   fontSizePx: Float,
   colorArgb: Int,
   cache: RaTeXBitmapCache?,
+  parse: suspend (String, Boolean) -> DisplayList,
 ): FormulaResult {
   cache?.get(latex, displayMode, fontSizePx, colorArgb)?.let { return it }
   return withContext(Dispatchers.Default) {
     RaTeXFontLoader.ensureLoaded(context)
-    val displayList = RaTeXEngine.parse(latex, displayMode)
+    val displayList = parse(latex, displayMode)
     val renderer = RaTeXRenderer(displayList, fontSizePx) { RaTeXFontLoader.getTypeface(it) }
     val size = formulaBitmapSize(renderer.widthPx, renderer.totalHeightPx)
     val result = if (size == null) {
