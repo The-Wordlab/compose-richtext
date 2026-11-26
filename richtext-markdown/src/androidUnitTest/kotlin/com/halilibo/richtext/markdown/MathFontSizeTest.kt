@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
@@ -38,6 +40,7 @@ import com.halilibo.richtext.ui.string.richTextString
 import com.halilibo.richtext.ui.string.withFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -154,6 +157,46 @@ class MathFontSizeTest {
     assertSize(18)
     composeRule.runOnIdle { boldSize = 0.75.em }
     assertSize(30)
+  }
+
+  @Test
+  fun `configured inline math leaves space between formulas on successive lines`() {
+    val cache = RaTeXBitmapCache().apply { storeBitmap(false, 14f, 32) }
+    val formula = InlineContent(
+      placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+      useTextRelativeSize = true,
+    ) { InlineMathContent("x") }
+    val text = richTextString {
+      appendInlineContent(content = formula)
+      append(" ")
+      appendInlineContent(content = formula)
+    }
+    var inlineSize by mutableStateOf(TextUnit.Unspecified)
+    var bounds = emptyList<Rect>()
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides LatexConfig(inlineFontSize = inlineSize),
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f),
+      ) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = 16.sp) }) {
+          BasicRichText(Modifier.width(56.dp)) {
+            Text(text, onTextLayout = { bounds = it.placeholderRects.filterNotNull() })
+          }
+        }
+      }
+    }
+
+    composeRule.waitUntil { bounds.size == 2 && bounds.all { it.height == 32f } }
+    val originalAdvance = composeRule.runOnIdle { bounds.last().top - bounds.first().top }
+    assertTrue(originalAdvance >= 32f)
+    composeRule.runOnIdle { inlineSize = 14.sp }
+    composeRule.waitForIdle()
+    composeRule.runOnIdle {
+      assertEquals(listOf(32f, 32f), bounds.map { it.width })
+      assertEquals(listOf(36f, 36f), bounds.map { it.height })
+      assertEquals(originalAdvance + 4f, bounds.last().top - bounds.first().top, 0.01f)
+    }
   }
 
   @Test
