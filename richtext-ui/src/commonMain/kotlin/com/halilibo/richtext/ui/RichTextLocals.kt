@@ -29,6 +29,7 @@ import com.halilibo.richtext.ui.util.detectTapGesturesIf
  * to RichText.
  */
 internal val LocalInternalTextStyle = compositionLocalOf { TextStyle.Default }
+internal val LocalInlineFontSizePx = compositionLocalOf<Float?> { null }
 
 /**
  * Carries the content color in Composition tree. Default TextStyle
@@ -44,9 +45,9 @@ internal val LocalInternalContentColor = compositionLocalOf { Color.Black }
 public val RichTextScope.currentTextStyle: TextStyle
   @Composable get() = textStyleProvider()
 
-/** Physical size of one em in the current paragraph or heading. */
+/** Physical size of one em in the current text, including the enclosing span of inline content. */
 public val RichTextScope.currentFontSizePx: Float
-  @Composable get() = with(LocalDensity.current) {
+  @Composable get() = LocalInlineFontSizePx.current ?: with(LocalDensity.current) {
     val direction = LocalLayoutDirection.current
     val fontSize = resolveDefaults(currentTextStyle, direction).fontSize
     if (fontSize.isEm) {
