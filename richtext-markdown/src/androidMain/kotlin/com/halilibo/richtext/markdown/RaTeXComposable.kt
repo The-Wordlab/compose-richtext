@@ -23,14 +23,12 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.resolveDefaults
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.halilibo.richtext.ui.RichTextScope
+import com.halilibo.richtext.ui.currentFontSizePx
 import com.halilibo.richtext.ui.currentTextStyle
 import io.ratex.RaTeXEngine
 import io.ratex.RaTeXFontLoader
@@ -44,16 +42,7 @@ private fun mathFontSizePx(size: TextUnit, default: Dp): Float = with(LocalDensi
   val pixels = when {
     !size.value.isFinite() || size.value <= 0f -> default.toPx()
     size.isSp -> size.toPx()
-    size.isEm -> {
-      val direction = LocalLayoutDirection.current
-      val textSize = resolveDefaults(RichTextScope.currentTextStyle, direction).fontSize
-      val textSizePx = if (textSize.isEm) {
-        resolveDefaults(TextStyle.Default, direction).fontSize.toPx() * textSize.value
-      } else {
-        textSize.toPx()
-      }
-      textSizePx * size.value
-    }
+    size.isEm -> RichTextScope.currentFontSizePx * size.value
     else -> default.toPx()
   }
   pixels.takeIf { it.isFinite() && it > 0f } ?: default.toPx()

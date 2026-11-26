@@ -81,7 +81,7 @@ class MathFontSizeTest {
   fun `an inline formula wider than its paragraph scrolls to the final glyphs`() {
     val cache = RaTeXBitmapCache().apply { storeBitmap(false, 14f, 120) }
     val text = richTextString {
-      appendInlineContent(content = InlineContent { InlineMathContent("x") })
+      appendInlineContent(content = InlineContent(useTextRelativeSize = true) { InlineMathContent("x") })
     }
     var placeholderWidth = 0f
     composeRule.setContent {
@@ -111,7 +111,7 @@ class MathFontSizeTest {
     }
     val text = richTextString {
       append("Value ")
-      appendInlineContent(content = InlineContent { InlineMathContent("x") })
+      appendInlineContent(content = InlineContent(useTextRelativeSize = true) { InlineMathContent("x") })
     }
     var fontScale by mutableFloatStateOf(1f)
     var inlineWidth = 0f

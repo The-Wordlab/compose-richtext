@@ -17,7 +17,10 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign.Companion.AboveBaseline
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.halilibo.richtext.ui.RichTextScope
+import com.halilibo.richtext.ui.currentFontSizePx
 
 /**
  * A Composable that can be embedded inline in a [RichTextString] by passing to
@@ -31,8 +34,15 @@ import androidx.compose.ui.unit.sp
 public class InlineContent(
   internal val initialSize: (Density.() -> IntSize)? = null,
   internal val placeholderVerticalAlign: PlaceholderVerticalAlign = AboveBaseline,
+  internal val useTextRelativeSize: Boolean,
   internal val content: @Composable Density.(alternateText: String) -> Unit
-)
+) {
+  public constructor(
+    initialSize: (Density.() -> IntSize)? = null,
+    placeholderVerticalAlign: PlaceholderVerticalAlign = AboveBaseline,
+    content: @Composable Density.(alternateText: String) -> Unit,
+  ) : this(initialSize, placeholderVerticalAlign, false, content)
+}
 
 /**
  * Converts a map of [InlineContent]s into a map of [InlineTextContent] that is ready to pass to
@@ -73,11 +83,13 @@ public class InlineContent(
   }
 
   with(density) {
-    // If size is null, content hasn't been measured yet, so just draw with zero width for now.
-    // Set the height to 1 em so we can calculate how many pixels in an EM.
+    // Older Android Compose releases convert sp placeholders with linear scaledDensity even
+    // when glyphs use nonlinear font scaling. Em uses the actual surrounding text paint.
+    val emSize = if (content.useTextRelativeSize) RichTextScope.currentFontSizePx else 0f
+    fun Int.placeholderSize() = if (emSize > 0f && emSize.isFinite()) (this / emSize).em else toSp()
     val placeholder = Placeholder(
-      width = size?.width?.toSp() ?: 0.sp,
-      height = size?.height?.toSp() ?: 1.sp,
+      width = size?.width?.placeholderSize() ?: 0.sp,
+      height = size?.height?.placeholderSize() ?: 1.sp,
       placeholderVerticalAlign = content.placeholderVerticalAlign
     )
 
