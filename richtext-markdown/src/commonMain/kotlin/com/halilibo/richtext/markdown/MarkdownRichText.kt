@@ -153,7 +153,7 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
         is AstInlineMath -> {
           if (currentNodeType.displayMode) {
             richTextStringBuilder.appendInlineContent(
-              content = InlineContent {
+              content = InlineContent(useTextRelativeSize = true) {
                 DisplayMathContent(latex = currentNodeType.literal)
               }
             )
@@ -161,6 +161,7 @@ private fun computeRichTextString(astNode: AstNode): RichTextString {
             richTextStringBuilder.appendInlineContent(
               content = InlineContent(
                 placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                useTextRelativeSize = true,
               ) {
                 InlineMathContent(latex = currentNodeType.literal)
               }

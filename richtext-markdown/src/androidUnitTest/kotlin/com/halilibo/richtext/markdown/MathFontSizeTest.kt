@@ -1,0 +1,283 @@
+package com.halilibo.richtext.markdown
+
+import android.app.Application
+import android.graphics.Bitmap
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.halilibo.richtext.ui.BasicRichText
+import com.halilibo.richtext.ui.RichTextStyle
+import com.halilibo.richtext.ui.RichTextThemeProvider
+import com.halilibo.richtext.ui.string.InlineContent
+import com.halilibo.richtext.ui.string.RichTextString
+import com.halilibo.richtext.ui.string.RichTextStringStyle
+import com.halilibo.richtext.ui.string.Text
+import com.halilibo.richtext.ui.string.richTextString
+import com.halilibo.richtext.ui.string.withFormat
+import io.ratex.DisplayItem
+import io.ratex.DisplayList
+import io.ratex.RaTeXColor
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import kotlin.math.ceil
+
+@RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class, sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class MathFontSizeTest {
+  @get:Rule
+  val composeRule = createComposeRule()
+
+  @Test
+  fun `bitmap dimensions round outwards and reject oversized or non-finite allocations`() {
+    assertEquals(IntSize(121, 36), formulaBitmapSize(120.25f, 35.5f))
+    assertEquals(IntSize(4096, 256), formulaBitmapSize(4096f, 256f))
+    assertNull(formulaBitmapSize(4096f, 256.1f))
+    assertNull(formulaBitmapSize(4097f, 1f))
+    assertNull(formulaBitmapSize(1f, Float.NaN))
+  }
+
+  @Test
+  fun `invalid sizes use the existing defaults and oversized formulas show their source`() {
+    val cache = RaTeXBitmapCache().apply {
+      put("inline source", false, 14f, Color.Black.toArgb(), FormulaTooLarge)
+      put("display source", true, 18f, Color.Black.toArgb(), FormulaTooLarge)
+    }
+    val config = LatexConfig(inlineFontSize = (-1).em, displayFontSize = Float.POSITIVE_INFINITY.sp)
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides config,
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f),
+      ) {
+        BasicRichText {
+          InlineMathContent("inline source")
+          DisplayMathContent("display source")
+        }
+      }
+    }
+    composeRule.onNodeWithText("inline source").assertExists()
+    composeRule.onNodeWithText("display source").assertExists()
+  }
+
+  @Test
+  fun `wide inline and display formulas scroll to the right edge at both text scales`() {
+    val latex = "\\rule{8em}{0.5em}"
+    val rule = DisplayList(
+      width = 8.0, height = 0.5, depth = 0.0,
+      items = listOf(DisplayItem.Rect(0.0, 0.0, 8.0, 0.5, RaTeXColor(0f, 0f, 0f, 1f))),
+    )
+    val parse: suspend (String, Boolean) -> DisplayList = { _, _ -> rule }
+    val config = LatexConfig(inlineFontSize = 1.25.em, displayFontSize = 1.5.em)
+    val bodySize = 16.sp
+    val viewport = 80.dp
+    var fontScale by mutableFloatStateOf(1f)
+    val text = richTextString {
+      appendInlineContent(content = InlineContent(useTextRelativeSize = true) {
+        RaTeXFormula(latex, displayMode = false, modifier = Modifier.testTag("inline"), parse = parse)
+      })
+    }
+    var placeholderWidth = 0f
+    composeRule.setContent {
+      CompositionLocalProvider(LocalLatexConfig provides config, LocalDensity provides Density(1f, fontScale)) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = bodySize) }) {
+          BasicRichText(Modifier.width(viewport)) {
+            Text(text, onTextLayout = { placeholderWidth = it.placeholderRects.single()?.width ?: 0f })
+            RaTeXFormula(latex, displayMode = true, modifier = Modifier.testTag("display"), parse = parse)
+          }
+        }
+      }
+    }
+
+    for (scale in listOf(1f, 2f)) {
+      composeRule.runOnIdle { fontScale = scale }
+      val density = Density(1f, scale)
+      val viewportPx = with(density) { viewport.toPx() }
+      val bodyPx = with(density) { bodySize.toPx() }
+      composeRule.waitUntil { placeholderWidth == viewportPx }
+      for ((tag, size) in listOf("inline" to config.inlineFontSize, "display" to config.displayFontSize)) {
+        val bitmapWidth = ceil(rule.width * (bodyPx * size.value)).toFloat()
+        val maxScroll = bitmapWidth - viewportPx
+        assertTrue(maxScroll > 0f)
+        val nodes = composeRule.onAllNodes(hasTestTag(tag) and hasScrollAction(), useUnmergedTree = true)
+        composeRule.waitUntil(5_000) {
+          nodes.fetchSemanticsNodes().singleOrNull()?.config
+            ?.get(SemanticsProperties.HorizontalScrollAxisRange)?.maxValue?.invoke() == maxScroll
+        }
+        val node = nodes[0]
+        val semantics = node.fetchSemanticsNode()
+        assertEquals(viewportPx, semantics.boundsInRoot.width, 0f)
+        val range = semantics.config[SemanticsProperties.HorizontalScrollAxisRange]
+        node.performSemanticsAction(SemanticsActions.ScrollBy) { it(maxScroll, 0f) }
+        composeRule.waitUntil { range.value() + viewportPx == bitmapWidth }
+      }
+    }
+  }
+
+  @Test
+  fun `inline math under a smaller span reserves the measured bitmap size and uses the span for em`() {
+    val cache = RaTeXBitmapCache().apply {
+      storeBitmap(false, 14f, 24)
+      storeBitmap(false, 12f, 18)
+      storeBitmap(false, 18f, 30)
+      storeBitmap(false, 24f, 36)
+    }
+    var actual = IntSize.Zero
+    var reserved = IntSize.Zero
+    var inlineSize by mutableStateOf(TextUnit.Unspecified)
+    var boldSize by mutableStateOf(8.25.sp)
+    val text = richTextString {
+      withFormat(RichTextString.Format.Bold) {
+        appendInlineContent(content = InlineContent(useTextRelativeSize = true) {
+          RaTeXFormula("x", displayMode = false, Modifier.onSizeChanged { actual = it })
+        })
+      }
+      append(" following")
+    }
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides LatexConfig(inlineFontSize = inlineSize),
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f),
+      ) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = 16.sp) }) {
+          val style = RichTextStringStyle(boldStyle = SpanStyle(fontSize = boldSize))
+          BasicRichText(style = RichTextStyle(stringStyle = style)) {
+            Text(text, onTextLayout = { layout ->
+              layout.placeholderRects.single()?.let { reserved = IntSize(it.width.toInt(), it.height.toInt()) }
+            })
+          }
+        }
+      }
+    }
+    fun assertSize(side: Int) {
+      composeRule.waitForIdle()
+      composeRule.runOnIdle {
+        assertEquals(IntSize(side, side), actual)
+        assertEquals(actual, reserved)
+      }
+    }
+    assertSize(24)
+    composeRule.runOnIdle { inlineSize = 1.5.em }
+    assertSize(18)
+    composeRule.runOnIdle { boldSize = 0.75.em }
+    assertSize(30)
+  }
+
+  @Test
+  fun `configured inline math leaves space between formulas on successive lines`() {
+    val cache = RaTeXBitmapCache().apply { storeBitmap(false, 14f, 32) }
+    val formula = InlineContent(
+      placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+      useTextRelativeSize = true,
+    ) { InlineMathContent("x") }
+    val text = richTextString {
+      appendInlineContent(content = formula)
+      append(" ")
+      appendInlineContent(content = formula)
+    }
+    var inlineSize by mutableStateOf(TextUnit.Unspecified)
+    var bounds = emptyList<Rect>()
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides LatexConfig(inlineFontSize = inlineSize),
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f),
+      ) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = 16.sp) }) {
+          BasicRichText(Modifier.width(56.dp)) {
+            Text(text, onTextLayout = { bounds = it.placeholderRects.filterNotNull() })
+          }
+        }
+      }
+    }
+
+    composeRule.waitUntil { bounds.size == 2 && bounds.all { it.height == 32f } }
+    val originalAdvance = composeRule.runOnIdle { bounds.last().top - bounds.first().top }
+    assertTrue(originalAdvance >= 32f)
+    composeRule.runOnIdle { inlineSize = 14.sp }
+    composeRule.waitForIdle()
+    composeRule.runOnIdle {
+      assertEquals(listOf(32f, 32f), bounds.map { it.width })
+      assertEquals(listOf(36f, 36f), bounds.map { it.height })
+      assertEquals(originalAdvance + 4f, bounds.last().top - bounds.first().top, 0.01f)
+    }
+  }
+
+  @Test
+  fun `inline placeholders and display math remeasure at the new font scale`() {
+    val cache = RaTeXBitmapCache()
+    val config = LatexConfig(inlineFontSize = 1.2.em, displayFontSize = 1.5.em)
+    val bodySize = 16.sp
+    for (scale in 1..2) {
+      val bodyPx = with(Density(1f, scale.toFloat())) { bodySize.toPx() }
+      cache.storeBitmap(false, bodyPx * 1.2f, 24 * scale)
+      cache.storeBitmap(true, bodyPx * 1.5f, 30 * scale)
+    }
+    val text = richTextString {
+      append("Value ")
+      appendInlineContent(content = InlineContent(useTextRelativeSize = true) { InlineMathContent("x") })
+    }
+    var fontScale by mutableFloatStateOf(1f)
+    var inlineWidth = 0f
+    var blockHeight = 0
+
+    composeRule.setContent {
+      CompositionLocalProvider(
+        LocalLatexConfig provides config,
+        LocalRaTeXBitmapCache provides cache,
+        LocalDensity provides Density(1f, fontScale),
+      ) {
+        RichTextThemeProvider(textStyleProvider = { TextStyle(fontSize = bodySize) }) {
+          BasicRichText {
+            Text(text, onTextLayout = { inlineWidth = it.placeholderRects.single()?.width ?: 0f })
+            RaTeXFormula("x", displayMode = true, Modifier.onSizeChanged { blockHeight = it.height })
+          }
+        }
+      }
+    }
+
+    composeRule.waitUntil { inlineWidth in 23f..25f && blockHeight == 30 + 32 }
+    composeRule.runOnIdle { fontScale = 2f }
+    composeRule.waitForIdle()
+    composeRule.waitUntil { inlineWidth in 47f..49f && blockHeight == 60 + 32 }
+  }
+
+  private fun RaTeXBitmapCache.storeBitmap(display: Boolean, fontSizePx: Float, side: Int) {
+    val bitmap = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+    put("x", display, fontSizePx, Color.Black.toArgb(), BitmapResult(bitmap, IntSize(side, side)))
+  }
+}

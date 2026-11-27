@@ -55,6 +55,7 @@ public fun RichTextScope.Text(
     text.getSpanBackgrounds((style ?: RichTextStringStyle.Default).resolveDefaults())
   }
   var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+  var inlineText by remember(annotated) { mutableStateOf(annotated) }
   val backgroundModifier = if (backgrounds.isEmpty()) {
     Modifier
   } else {
@@ -62,6 +63,7 @@ public fun RichTextScope.Text(
   }
   val onLayout: (TextLayoutResult) -> Unit = {
     layout = it
+    if (inlineContents.isNotEmpty()) inlineText = it.layoutInput.text
     onTextLayout(it)
   }
 
@@ -79,6 +81,7 @@ public fun RichTextScope.Text(
     BoxWithConstraints(modifier = modifier) {
       val inlineTextContents = manageInlineTextContents(
         inlineContents = inlineContents,
+        text = inlineText,
         textConstraints = constraints
       )
 

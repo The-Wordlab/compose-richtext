@@ -11,9 +11,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.resolveDefaults
 import androidx.compose.ui.text.style.TextOverflow
 import com.halilibo.richtext.ui.util.detectTapGesturesIf
 
@@ -26,6 +29,7 @@ import com.halilibo.richtext.ui.util.detectTapGesturesIf
  * to RichText.
  */
 internal val LocalInternalTextStyle = compositionLocalOf { TextStyle.Default }
+internal val LocalInlineFontSizePx = compositionLocalOf<Float?> { null }
 
 /**
  * Carries the content color in Composition tree. Default TextStyle
@@ -38,8 +42,20 @@ internal val LocalInternalContentColor = compositionLocalOf { Color.Black }
 /**
  * The current [TextStyle].
  */
-internal val RichTextScope.currentTextStyle: TextStyle
+public val RichTextScope.currentTextStyle: TextStyle
   @Composable get() = textStyleProvider()
+
+/** Physical size of one em in the current text, including the enclosing span of inline content. */
+public val RichTextScope.currentFontSizePx: Float
+  @Composable get() = LocalInlineFontSizePx.current ?: with(LocalDensity.current) {
+    val direction = LocalLayoutDirection.current
+    val fontSize = resolveDefaults(currentTextStyle, direction).fontSize
+    if (fontSize.isEm) {
+      resolveDefaults(TextStyle.Default, direction).fontSize.toPx() * fontSize.value
+    } else {
+      fontSize.toPx()
+    }
+  }
 
 /**
  * The current content [Color].

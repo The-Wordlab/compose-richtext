@@ -4,13 +4,13 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.TextUnit
 
 /**
  * Configuration for LaTeX rendering via RaTeX.
  *
- * Provide via [LocalLatexConfig] to customize the text color for rendered formulas.
- * When [textColor] is [Color.Unspecified], the renderer falls back to the current
- * [LocalContentColor].
+ * Formula sizes accept sp or em relative to the surrounding rich text. Unspecified
+ * sizes keep the original inline (14 dp) and display (18 dp) sizes.
  *
  * ```kotlin
  * CompositionLocalProvider(
@@ -25,7 +25,17 @@ import androidx.compose.ui.graphics.Color
 @Immutable
 public data class LatexConfig(
   val textColor: Color = Color.Black,
-)
+  val inlineFontSize: TextUnit = TextUnit.Unspecified,
+  val displayFontSize: TextUnit = TextUnit.Unspecified,
+) {
+  @Deprecated("Retained for binary compatibility", level = DeprecationLevel.HIDDEN)
+  public constructor(textColor: Color = Color.Black) :
+    this(textColor, TextUnit.Unspecified, TextUnit.Unspecified)
+
+  @Deprecated("Retained for binary compatibility", level = DeprecationLevel.HIDDEN)
+  public fun copy(textColor: Color = this.textColor): LatexConfig =
+    copy(textColor, inlineFontSize, displayFontSize)
+}
 
 /**
  * CompositionLocal to provide [LatexConfig] for LaTeX blocks rendered via RaTeX.
